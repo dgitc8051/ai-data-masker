@@ -78,6 +78,9 @@ Email:abc@gmail.com
   return (
     <div className="container">
       <h1>個資遮罩工具</h1>
+      <p className="description">
+        自動偵測文字中的敏感個人資訊（如姓名、電話、身分證、地址等），並將其替換為遮罩符號，幫助您在分享資料時保護隱私。
+      </p>
 
       {/* 輸入區塊 */}
       <div className="input-section">
