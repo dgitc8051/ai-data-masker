@@ -36,7 +36,7 @@ class AiMaskService
 格式範例：
 {\"items\": [{\"text\": \"0912345678\", \"type\": \"phone\"}, {\"text\": \"wang@gmail.com\", \"type\": \"email\"}]}
 
-類型包含：phone, email, id_card, credit_card, name, address
+類型包含：phone, email, id_card, credit_card, account, name, address
 
 文字內容：
 {$text}";
@@ -96,6 +96,7 @@ class AiMaskService
             'email' => 'Email',
             'id_card' => '身分證',
             'credit_card' => '信用卡',
+            'account' => '帳號',
             'name' => '姓名',
             'address' => '地址',
         ];
