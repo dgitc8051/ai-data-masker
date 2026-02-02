@@ -19,7 +19,7 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['http://localhost:5173'],
+    'allowed_origins' => ['http://localhost:5173', 'https://ai-data-masker-production-fda9.up.railway.app'],
 
     'allowed_origins_patterns' => [],
 
