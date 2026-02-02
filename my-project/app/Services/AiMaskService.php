@@ -7,8 +7,8 @@ use Illuminate\Support\Facades\Http;
 class AiMaskService
 {
     // ============ API 設定 ============
-    // Gemini API URL（使用 gemini-1.5-flash 免費模型）
-    protected string $geminiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+    // Gemini API URL（使用 v1 API）
+    protected string $geminiUrl = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent';
 
     // 從環境變數取得 API Key
     protected function getApiKey(): string
