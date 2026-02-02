@@ -52,14 +52,21 @@ class AiMaskService
                 ]
             ]);
 
+            // 記錄完整回應（除錯用）
+            \Log::info('Gemini API Response', ['body' => $response->json()]);
+
             // 取得 AI 回傳的文字
             $result = $response->json('candidates.0.content.parts.0.text', '');
+
+            // 記錄解析出的文字（除錯用）
+            \Log::info('Gemini Result Text', ['text' => $result]);
 
             // 用正則取出 JSON 部分
             preg_match('/\{.*\}/s', $result, $matches);
 
             if (!empty($matches[0])) {
                 $decoded = json_decode($matches[0], true);
+                \Log::info('Parsed JSON', ['items' => $decoded['items'] ?? []]);
                 return $decoded['items'] ?? [];
             }
         } catch (\Exception $e) {
