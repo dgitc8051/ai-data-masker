@@ -18,6 +18,10 @@ function App() {
     address: true,    // 地址                                   
   })
 
+  // ============ 範例文字 ============
+  // 定義一個包含各種個資類型的範例，讓使用者可以快速測試
+  const exampleText = "王小明的手機0912-345-678，市話02-12345678，Email:abc@gmail.com，身分證A123456789，信用卡1234-5678-9012-3456，帳號12345678901，地址台北市中正區忠孝東路100號";
+
   // ============ 呼叫 API 的函數 ============
   const handleMask = async () => {
     setLoading(true)  // 開始載入
@@ -77,6 +81,13 @@ function App() {
           placeholder="例如：王小明的手機0912-345-678，市話02-12345678，Email:abc@gmail.com，身分證A123456789，信用卡1234-5678-9012-3456，帳號12345678901，地址台北市中正區忠孝東路100號"
           rows={5}
         />
+        {/* 產生範例按鈕：點擊後將 exampleText 填入輸入框 */}
+        <button
+          onClick={() => setInputText(exampleText)}  // 點擊時執行 setInputText，把範例文字放進輸入框
+          className="example-btn"                    // 套用 CSS 樣式
+        >
+          產生範例
+        </button>
       </div>
 
       {/* 遮罩類型選擇 */}
