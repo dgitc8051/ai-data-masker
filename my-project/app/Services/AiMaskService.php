@@ -7,24 +7,25 @@ use Illuminate\Support\Facades\Http;
 class AiMaskService
 {
     // ============ API 設定 ============
-    // Gemini API URL
-    protected string $geminiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent';
+    // OpenAI API URL
+    protected string $openaiUrl = 'https://api.openai.com/v1/chat/completions';
 
     // 從環境變數取得 API Key
     protected function getApiKey(): string
     {
-        return config('services.gemini.api_key', env('GEMINI_API_KEY', ''));
+        return env('OPENAI_API_KEY', '');
     }
 
     /**
-     * 偵測個資（使用 Google Gemini API）
+     * 偵測個資（使用 OpenAI API）
      */
     public function detectPii(string $text): array
     {
         $apiKey = $this->getApiKey();
 
-        // 如果沒有 API Key，回傳空陣列（本地開發可能沒設定）
+        // 如果沒有 API Key，回傳空陣列
         if (empty($apiKey)) {
+            error_log('OpenAI API Key not configured');
             return [];
         }
 
@@ -41,25 +42,30 @@ class AiMaskService
 {$text}";
 
         try {
-            // 發送 POST 請求給 Gemini API
-            $response = Http::timeout(30)->post("{$this->geminiUrl}?key={$apiKey}", [
-                'contents' => [
-                    [
-                        'parts' => [
-                            ['text' => $prompt]
+            // 發送 POST 請求給 OpenAI API
+            $response = Http::timeout(30)
+                ->withHeaders([
+                    'Authorization' => "Bearer {$apiKey}",
+                    'Content-Type' => 'application/json',
+                ])
+                ->post($this->openaiUrl, [
+                    'model' => 'gpt-4o-mini',  // 使用最便宜的模型
+                    'messages' => [
+                        [
+                            'role' => 'user',
+                            'content' => $prompt
                         ]
-                    ]
-                ]
-            ]);
+                    ],
+                    'temperature' => 0.1,  // 低溫度讓回應更穩定
+                ]);
 
-            // 記錄完整回應（除錯用，會顯示在 Railway logs）
-            error_log('Gemini API Response: ' . json_encode($response->json()));
+            // 記錄回應（除錯用）
+            error_log('OpenAI API Response: ' . json_encode($response->json()));
 
             // 取得 AI 回傳的文字
-            $result = $response->json('candidates.0.content.parts.0.text', '');
+            $result = $response->json('choices.0.message.content', '');
 
-            // 記錄解析出的文字（除錯用）
-            error_log('Gemini Result Text: ' . $result);
+            error_log('OpenAI Result Text: ' . $result);
 
             // 用正則取出 JSON 部分
             preg_match('/\{.*\}/s', $result, $matches);
@@ -70,8 +76,7 @@ class AiMaskService
                 return $decoded['items'] ?? [];
             }
         } catch (\Exception $e) {
-            // 發生錯誤時記錄並回傳空陣列
-            \Log::error('Gemini API Error: ' . $e->getMessage());
+            error_log('OpenAI API Error: ' . $e->getMessage());
         }
 
         return [];
