@@ -74,7 +74,7 @@ function App() {
         <textarea
           value={inputText}                           // 綁定狀態
           onChange={(e) => setInputText(e.target.value)}  // 輸入時更新狀態
-          placeholder="例如：王小明的電話是0912345678，身分證A123456789"
+          placeholder="例如：王小明的手機0912-345-678，市話02-12345678，Email:abc@gmail.com，身分證A123456789，信用卡1234-5678-9012-3456，帳號12345678901，地址台北市中正區忠孝東路100號"
           rows={5}
         />
       </div>
