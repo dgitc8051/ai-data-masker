@@ -9,13 +9,14 @@ function App() {
   const [loading, setLoading] = useState(false)       // 是否正在載入
   const [stats, setStats] = useState({})
   const [purpose, setPurpose] = useState('內部使用')
+
   const [maskTypes, setMaskTypes] = useState({
-    phone: true,      // 電話                                   
-    email: true,      // Email                                  
-    idCard: true,     // 身分證                                 
-    creditCard: true, // 信用卡                                 
-    account: true,    // 帳號                                   
-    address: true,    // 地址                                   
+    phone: true,      // 電話
+    email: true,      // Email
+    idCard: true,     // 身分證
+    creditCard: true, // 信用卡
+    account: true,    // 帳號
+    address: true,    // 地址
   })
 
   // ============ 範例文字 ============
@@ -35,7 +36,7 @@ Email:abc@gmail.com
 
     try {
       // 發送 POST 請求到 Laravel API
-      const response = await fetch('https://helpful-spirit-production.up.railway.app/api/mask', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/mask`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',  // 告訴後端我們送的是 JSON
@@ -59,7 +60,7 @@ Email:abc@gmail.com
     setLoading(true)
     try {
       const response = await
-        fetch('https://helpful-spirit-production.up.railway.app/api/mask-ai', {
+        fetch(`${import.meta.env.VITE_API_URL}/api/mask-ai`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: inputText }),
@@ -76,7 +77,7 @@ Email:abc@gmail.com
 
   // ============ 畫面渲染 ============
   return (
-    <div className="min-h-screen bg-gray-100 py-8 px-4">                                                                                 
+    <div className="min-h-screen bg-gray-100 py-8 px-4">
       <div className="max-w-2xl mx-auto">
         {/* 標題卡片 */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
@@ -133,6 +134,7 @@ Email:abc@gmail.com
             ))}
           </div>
 
+
           <label className="block text-sm font-medium text-gray-700 mb-2">
             使用用途：
           </label>
@@ -180,7 +182,7 @@ Email:abc@gmail.com
 
         {/* 輸出區塊 */}
         {maskedText && (
-          <div className="bg-black rounded-lg shadow-md p-6">
+          <div className="bg-white rounded-lg shadow-md p-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               遮罩結果：
             </label>
