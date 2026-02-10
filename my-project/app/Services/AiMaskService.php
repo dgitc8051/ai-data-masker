@@ -83,33 +83,106 @@ class AiMaskService
     }
 
     /**
-     * 用 AI 執行遮罩
+     * 用 AI 執行遮罩（保留格式）
      */
     public function maskWithAi(string $text): array
     {
         $piiItems = $this->detectPii($text);
         $masked = $text;
 
-        // 類型對應的中文標籤
-        $typeLabels = [
-            'phone' => '電話',
-            'email' => 'Email',
-            'id_card' => '身分證',
-            'credit_card' => '信用卡',
-            'account' => '帳號',
-            'name' => '姓名',
-            'address' => '地址',
-        ];
-
-        // 遍歷每個個資並替換
+        // 遍歷每個個資並用保留格式替換
         foreach ($piiItems as $item) {
-            $label = $typeLabels[$item['type']] ?? '個資';
-            $masked = str_replace($item['text'], "[{$label}]", $masked);
+            $replacement = $this->maskPartial($item['text'], $item['type']);
+            $masked = str_replace($item['text'], $replacement, $masked);
         }
 
         return [
             'masked' => $masked,
             'detected' => $piiItems,
         ];
+    }
+
+    /**
+     * 根據類型做保留格式遮罩
+     * 和 MaskController 的邏輯一致
+     */
+    protected function maskPartial(string $text, string $type): string
+    {
+        switch ($type) {
+            case 'phone':
+                // 手機：09**-***-678
+                $raw = preg_replace('/-/', '', $text);
+                if (strlen($raw) === 10 && str_starts_with($raw, '09')) {
+                    return substr($raw, 0, 2) . '**-***-' . substr($raw, -3);
+                }
+                // 市話：02-****5678
+                if (str_contains($text, '-')) {
+                    $parts = explode('-', $text);
+                    $areaCode = $parts[0];
+                    $number = $parts[1];
+                    if (strlen($number) >= 5) {
+                        return $areaCode . '-' . str_repeat('*', strlen($number) - 4) . substr($number, -4);
+                    }
+                }
+                return substr($text, 0, 2) . str_repeat('*', max(strlen($text) - 5, 1)) . substr($text, -3);
+
+            case 'email':
+                // a**@gmail.com
+                $atPos = strpos($text, '@');
+                if ($atPos !== false && $atPos > 0) {
+                    $firstChar = substr($text, 0, 1);
+                    $domain = substr($text, $atPos);
+                    return $firstChar . str_repeat('*', $atPos - 1) . $domain;
+                }
+                return $text;
+
+            case 'id_card':
+                // A1******89
+                if (strlen($text) === 10) {
+                    return substr($text, 0, 2) . str_repeat('*', 6) . substr($text, -2);
+                }
+                return $text;
+
+            case 'credit_card':
+                // ****-****-****-3456
+                $raw = preg_replace('/[-\s]/', '', $text);
+                if (strlen($raw) === 16) {
+                    if (str_contains($text, '-') || str_contains($text, ' ')) {
+                        return '****-****-****-' . substr($raw, -4);
+                    }
+                    return str_repeat('*', 12) . substr($raw, -4);
+                }
+                return $text;
+
+            case 'account':
+                // ********901
+                if (strlen($text) >= 5) {
+                    return str_repeat('*', strlen($text) - 3) . substr($text, -3);
+                }
+                return $text;
+
+            case 'name':
+                // 王**
+                $len = mb_strlen($text);
+                if ($len >= 2) {
+                    return mb_substr($text, 0, 1) . str_repeat('*', $len - 1);
+                }
+                return '*';
+
+            case 'address':
+                // 台北市中正區*****
+                if (preg_match('/^([\x{4e00}-\x{9fa5}]{2,3}[縣市][\x{4e00}-\x{9fa5}]{1,4}[區鄉鎮市])/u', $text, $prefix)) {
+                    $rest = mb_substr($text, mb_strlen($prefix[0]));
+                    return $prefix[0] . str_repeat('*', mb_strlen($rest));
+                }
+                return str_repeat('*', mb_strlen($text));
+
+            default:
+                // 未知類型：保留頭尾，中間遮罩
+                $len = mb_strlen($text);
+                if ($len <= 2)
+                    return str_repeat('*', $len);
+                return mb_substr($text, 0, 1) . str_repeat('*', $len - 2) . mb_substr($text, -1);
+        }
     }
 }
