@@ -67,7 +67,17 @@ Email:abc@gmail.com
         })
       const data = await response.json()
       setMaskedText(data.masked)
-      setStats({ 'AI偵測': data.detected.length })
+      // 把 AI 回傳的 detected 陣列按類型計算數量
+      const typeLabels = {
+        phone: '電話', email: 'Email', id_card: '身分證',
+        credit_card: '信用卡', account: '帳號', name: '姓名', address: '地址',
+      }
+      const aiStats = {}
+      data.detected.forEach(item => {
+        const label = typeLabels[item.type] || item.type
+        aiStats[label] = (aiStats[label] || 0) + 1
+      })
+      setStats(aiStats)
     } catch (error) {
       console.error('錯誤:', error)
       setMaskedText('發生錯誤')
