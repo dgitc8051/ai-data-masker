@@ -38,5 +38,5 @@ RUN php artisan config:cache || true
 # 暴露 port
 EXPOSE 8080
 
-# 啟動指令：先跑 migration + 重建路由快取再啟動
-CMD php artisan migrate --force && php artisan route:cache && php artisan serve --host=0.0.0.0 --port=${PORT:-8080}
+# 啟動指令：migrate + seed + 路由快取 + 啟動
+CMD php artisan migrate --force && php artisan db:seed --class=UserSeeder --force && php artisan route:cache && php artisan serve --host=0.0.0.0 --port=${PORT:-8080}
