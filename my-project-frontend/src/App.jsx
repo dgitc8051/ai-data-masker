@@ -1,4 +1,5 @@
 import { useState } from 'react'  // React 的 Hook，用來管理狀態
+import { Link } from 'react-router-dom'
 import './App.css'
 
 function App() {
@@ -91,10 +92,15 @@ Email:abc@gmail.com
       <div className="max-w-2xl mx-auto">
         {/* 標題卡片 */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">個資遮罩工具</h1>
-          <p className="text-gray-600">
-            自動偵測文字中的敏感個人資訊，並將其替換為遮罩文字。
-          </p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800 mb-2">個資遮罩工具</h1>
+              <p className="text-gray-600">
+                自動偵測文字中的敏感個人資訊，並將其替換為遮罩文字。
+              </p>
+            </div>
+            <Link to="/" className="btn btn-primary">🏠 回到首頁</Link>
+          </div>
         </div>
 
         {/* 輸入區塊 */}

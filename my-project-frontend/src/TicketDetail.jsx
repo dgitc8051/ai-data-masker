@@ -1,0 +1,600 @@
+import { useState, useEffect } from 'react'
+import { useParams, Link } from 'react-router-dom'
+import { useAuth } from './AuthContext'
+
+const STATUS_MAP = {
+    new: { label: '新案件', color: '#3b82f6' },
+    need_more_info: { label: '待補件', color: '#f59e0b' },
+    scheduled: { label: '已排程', color: '#8b5cf6' },
+    dispatched: { label: '已派工', color: '#06b6d4' },
+    done: { label: '完工', color: '#10b981' },
+    closed: { label: '結案', color: '#9ca3af' },
+    pending: { label: '待處理', color: '#f59e0b' },
+    processing: { label: '處理中', color: '#3b82f6' },
+    completed: { label: '已完成', color: '#10b981' },
+}
+
+const STATUS_FLOW = ['new', 'need_more_info', 'scheduled', 'dispatched', 'done', 'closed']
+
+export default function TicketDetail() {
+    const { id } = useParams()
+    const { user, authFetch, API } = useAuth()
+    const [ticket, setTicket] = useState(null)
+    const [loading, setLoading] = useState(true)
+    const [newComment, setNewComment] = useState('')
+    const [workers, setWorkers] = useState([])
+    const [editingSummary, setEditingSummary] = useState(false)
+    const [summaryText, setSummaryText] = useState('')
+    const [notesText, setNotesText] = useState('')
+    const [showDispatch, setShowDispatch] = useState(false)
+    const [dispatchResult, setDispatchResult] = useState(null)
+    const [saving, setSaving] = useState(false)
+    const [completionPhotos, setCompletionPhotos] = useState([])
+
+    const isAdmin = user?.role === 'admin'
+    const isRepairTicket = ticket?.category != null
+
+    const fetchTicket = async () => {
+        try {
+            const res = await authFetch(`${API}/api/tickets/${id}`)
+            const data = await res.json()
+            setTicket(data)
+            setSummaryText(data.description_summary || '')
+            setNotesText(data.notes_internal || '')
+        } catch (err) {
+            console.error('載入失敗:', err)
+        }
+        setLoading(false)
+    }
+
+    useEffect(() => {
+        fetchTicket()
+        if (isAdmin) {
+            authFetch(`${API}/api/users/workers`)
+                .then(res => res.json())
+                .then(data => setWorkers(data))
+                .catch(() => { })
+        }
+    }, [id]) // eslint-disable-line
+
+    // 更新狀態
+    const updateStatus = async (newStatus) => {
+        setSaving(true)
+        await authFetch(`${API}/api/tickets/${id}/status`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: newStatus }),
+        })
+        fetchTicket()
+        setSaving(false)
+    }
+
+    // 儲存摘要 & 備註
+    const saveSummaryNotes = async () => {
+        setSaving(true)
+        await authFetch(`${API}/api/tickets/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                description_summary: summaryText,
+                notes_internal: notesText,
+            }),
+        })
+        setEditingSummary(false)
+        fetchTicket()
+        setSaving(false)
+    }
+
+    // 排程
+    const [scheduleDate, setScheduleDate] = useState('')
+    const saveSchedule = async () => {
+        setSaving(true)
+        await authFetch(`${API}/api/tickets/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ scheduled_at: scheduleDate, status: 'scheduled' }),
+        })
+        fetchTicket()
+        setSaving(false)
+    }
+
+    // 派工
+    const handleDispatch = async () => {
+        setSaving(true)
+        try {
+            const res = await authFetch(`${API}/api/tickets/${id}/dispatch`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({}),
+            })
+            const data = await res.json()
+            setDispatchResult(data.dispatch)
+            fetchTicket()
+        } catch (err) {
+            alert('派工失敗')
+        }
+        setSaving(false)
+    }
+
+    // 留言
+    const submitComment = async (e) => {
+        e.preventDefault()
+        if (!newComment.trim()) return
+        await authFetch(`${API}/api/tickets/${id}/comments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: newComment }),
+        })
+        setNewComment('')
+        fetchTicket()
+    }
+
+    // 師傅完工回報
+    const handleCompletion = async () => {
+        if (!confirm('確定要回報完工嗎？')) return
+        setSaving(true)
+        try {
+            // 上傳完工照（如果有的話）
+            if (completionPhotos.length > 0) {
+                const formData = new FormData()
+                completionPhotos.forEach(f => formData.append('attachments[]', f))
+                formData.append('type', 'completion')
+                await authFetch(`${API}/api/tickets/${id}/attachments`, {
+                    method: 'POST',
+                    body: formData,
+                })
+            }
+            // 更新狀態為完工
+            await updateStatus('done')
+            setCompletionPhotos([])
+        } catch (err) {
+            alert('回報失敗：' + err.message)
+        }
+        setSaving(false)
+    }
+
+    if (loading) return <div className="container"><p>⏳ 載入中...</p></div>
+    if (!ticket) return <div className="container"><p>❌ 找不到工單</p></div>
+
+    const st = STATUS_MAP[ticket.status] || STATUS_MAP.pending
+
+    return (
+        <div className="container">
+            <Link to="/" className="btn btn-secondary" style={{ marginBottom: '16px' }}>← 回到列表</Link>
+
+            {/* 標題區 */}
+            <div style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+                marginBottom: '20px', flexWrap: 'wrap', gap: '10px',
+            }}>
+                <div>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '6px' }}>
+                        <span style={{ fontWeight: 'bold', color: '#4f46e5', fontSize: '18px' }}>{ticket.ticket_no}</span>
+                        {ticket.category && (
+                            <span style={{ padding: '3px 10px', borderRadius: '10px', fontSize: '12px', background: '#eef2ff', color: '#4f46e5', fontWeight: 'bold' }}>
+                                {ticket.category}
+                            </span>
+                        )}
+                        {ticket.is_urgent && <span style={{ fontSize: '14px' }}>🔴 急件</span>}
+                    </div>
+                    <h2 style={{ margin: 0 }}>{ticket.title}</h2>
+                </div>
+                <span style={{
+                    padding: '6px 16px', borderRadius: '16px', fontSize: '13px',
+                    background: st.color + '18', color: st.color, fontWeight: 'bold',
+                }}>{st.label}</span>
+            </div>
+
+            {/* ====== 報修工單：客服/管理員視圖 ====== */}
+            {isRepairTicket && isAdmin && (
+                <>
+                    {/* 客戶資料 */}
+                    <div className="detail-card">
+                        <h3>👤 客戶資料</h3>
+                        <div style={{ display: 'grid', gap: '10px' }}>
+                            {ticket.customer_name && (
+                                <div style={rowStyle}><span style={labelStyle}>姓名</span><span>{ticket.customer_name}</span></div>
+                            )}
+                            {ticket.phone && (
+                                <div style={rowStyle}><span style={labelStyle}>電話</span><span>{ticket.phone}</span></div>
+                            )}
+                            {ticket.address && (
+                                <div style={rowStyle}><span style={labelStyle}>地址</span><span>{ticket.address}</span></div>
+                            )}
+                            {ticket.preferred_time_slot && (
+                                <div style={rowStyle}><span style={labelStyle}>偏好時段</span><span>{ticket.preferred_time_slot}</span></div>
+                            )}
+                            {ticket.scheduled_at && (
+                                <div style={rowStyle}><span style={labelStyle}>排程時間</span><span style={{ color: '#4f46e5', fontWeight: 'bold' }}>{new Date(ticket.scheduled_at).toLocaleString('zh-TW')}</span></div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* 問題描述 */}
+                    <div className="detail-card">
+                        <h3>🔧 問題描述</h3>
+                        {ticket.description_raw && (
+                            <div style={{ padding: '12px 16px', background: '#f9fafb', borderRadius: '8px', marginBottom: '12px', whiteSpace: 'pre-wrap' }}>
+                                {ticket.description_raw}
+                            </div>
+                        )}
+
+                        {/* 現場照片（報修時上傳） */}
+                        {ticket.attachments && ticket.attachments.filter(a => a.file_type !== 'completion').length > 0 && (
+                            <div>
+                                <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px' }}>📷 現場照片</div>
+                                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                    {ticket.attachments.filter(a => a.file_type !== 'completion').map(att => (
+                                        <img
+                                            key={att.id}
+                                            src={`${API}/storage/${att.file_path}`}
+                                            alt={att.original_name}
+                                            style={{ width: '120px', height: '120px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #e5e7eb', cursor: 'pointer' }}
+                                            onClick={() => window.open(`${API}/storage/${att.file_path}`, '_blank')}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 完工照片（師傅上傳） */}
+                        {ticket.attachments && ticket.attachments.filter(a => a.file_type === 'completion').length > 0 && (
+                            <div style={{ marginTop: '16px' }}>
+                                <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px', color: '#10b981' }}>✅ 完工照片</div>
+                                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                    {ticket.attachments.filter(a => a.file_type === 'completion').map(att => (
+                                        <img
+                                            key={att.id}
+                                            src={`${API}/storage/${att.file_path}`}
+                                            alt={att.original_name}
+                                            style={{ width: '120px', height: '120px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #10b981', cursor: 'pointer' }}
+                                            onClick={() => window.open(`${API}/storage/${att.file_path}`, '_blank')}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* 客服操作區 */}
+                    <div className="detail-card">
+                        <h3>📝 客服操作</h3>
+
+                        {/* 摘要編輯 */}
+                        <div style={{ marginBottom: '16px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                <label style={{ fontWeight: 'bold', fontSize: '14px' }}>外勤摘要</label>
+                                {!editingSummary && (
+                                    <button onClick={() => setEditingSummary(true)} className="btn btn-secondary" style={{ fontSize: '12px', padding: '4px 12px' }}>編輯</button>
+                                )}
+                            </div>
+                            {editingSummary ? (
+                                <>
+                                    <textarea rows="3" className="form-input"
+                                        placeholder="寫給師傅看的摘要，例如：冷氣不冷，昨晚開始，清過濾網無改善"
+                                        value={summaryText} onChange={e => setSummaryText(e.target.value)} />
+                                    <label style={{ fontWeight: 'bold', fontSize: '14px', marginTop: '10px', display: 'block' }}>內部備註</label>
+                                    <textarea rows="2" className="form-input"
+                                        placeholder="門禁、停車等注意事項（不會外發給師傅）"
+                                        value={notesText} onChange={e => setNotesText(e.target.value)} />
+                                    <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                                        <button onClick={saveSummaryNotes} className="btn btn-primary" disabled={saving} style={{ fontSize: '13px' }}>
+                                            {saving ? '⏳ ...' : '💾 儲存'}
+                                        </button>
+                                        <button onClick={() => setEditingSummary(false)} className="btn btn-secondary" style={{ fontSize: '13px' }}>取消</button>
+                                    </div>
+                                </>
+                            ) : (
+                                <div style={{ padding: '10px 14px', background: '#f0fdf4', borderRadius: '8px', fontSize: '14px', minHeight: '40px' }}>
+                                    {ticket.description_summary || <span style={{ color: '#9ca3af' }}>尚未填寫外勤摘要</span>}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* 排程 */}
+                        {!ticket.scheduled_at && (
+                            <div style={{ marginBottom: '16px' }}>
+                                <label style={{ fontWeight: 'bold', fontSize: '14px' }}>排程時間</label>
+                                <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                                    <input type="datetime-local" className="form-input" style={{ flex: 1 }}
+                                        value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} />
+                                    <button onClick={saveSchedule} className="btn btn-primary" disabled={!scheduleDate || saving} style={{ fontSize: '13px' }}>
+                                        📅 設定排程
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 狀態變更 */}
+                        <div style={{ marginBottom: '16px' }}>
+                            <label style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '6px', display: 'block' }}>狀態變更</label>
+                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                {STATUS_FLOW.map(s => {
+                                    const stInfo = STATUS_MAP[s]
+                                    return (
+                                        <button
+                                            key={s}
+                                            onClick={() => updateStatus(s)}
+                                            disabled={ticket.status === s || saving}
+                                            className={ticket.status === s ? 'btn btn-primary' : 'btn btn-secondary'}
+                                            style={{
+                                                fontSize: '12px', padding: '6px 12px',
+                                                opacity: ticket.status === s ? 1 : 0.8,
+                                            }}
+                                        >{stInfo.label}</button>
+                                    )
+                                })}
+                            </div>
+                        </div>
+
+                        {/* 派工按鈕 */}
+                        <button
+                            onClick={() => setShowDispatch(true)}
+                            className="btn btn-primary"
+                            style={{ width: '100%', padding: '14px', fontSize: '16px', background: '#06b6d4' }}
+                        >
+                            🚀 產生外勤版派工
+                        </button>
+                    </div>
+
+                    {/* 派工預覽 Modal */}
+                    {showDispatch && (
+                        <div className="detail-card" style={{ border: '2px solid #06b6d4', background: '#f0fdfa' }}>
+                            <h3>📤 外勤版派工預覽</h3>
+                            {dispatchResult ? (
+                                <>
+                                    <pre style={{
+                                        background: '#1e293b', color: '#e2e8f0', padding: '16px',
+                                        borderRadius: '8px', whiteSpace: 'pre-wrap', fontSize: '14px',
+                                        lineHeight: '1.8',
+                                    }}>
+                                        {dispatchResult.message}
+                                    </pre>
+                                    <p style={{ textAlign: 'center', color: '#10b981', fontWeight: 'bold', marginTop: '12px' }}>
+                                        ✅ 已派工完成！
+                                    </p>
+                                    <button onClick={() => { setShowDispatch(false); setDispatchResult(null) }}
+                                        className="btn btn-secondary" style={{ width: '100%' }}>關閉</button>
+                                </>
+                            ) : (
+                                <>
+                                    <p style={{ color: '#374151', fontSize: '14px', marginBottom: '12px' }}>
+                                        系統將自動套用「最小揭露規則」：
+                                    </p>
+                                    <ul style={{ fontSize: '13px', color: '#6b7280', paddingLeft: '20px', lineHeight: '2' }}>
+                                        <li>姓名 → 遮罩為「X 先生/小姐」</li>
+                                        <li>電話 → 完整提供（師傅需聯絡）</li>
+                                        <li>地址 → 完整提供（師傅需到場）</li>
+                                        <li>Email / 證件 → 不顯示</li>
+                                        <li>內部備註 → 不外發</li>
+                                    </ul>
+                                    {ticket.assigned_users && ticket.assigned_users.length > 0 && (
+                                        <div style={{ padding: '10px 14px', background: 'white', borderRadius: '8px', margin: '12px 0' }}>
+                                            <span style={{ fontWeight: 'bold', fontSize: '13px' }}>派工給：</span>
+                                            {ticket.assigned_users.map(u => u.name).join('、')}
+                                        </div>
+                                    )}
+                                    <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
+                                        <button onClick={() => setShowDispatch(false)} className="btn btn-secondary">取消</button>
+                                        <button onClick={handleDispatch} disabled={saving}
+                                            className="btn btn-primary" style={{ flex: 1, background: '#06b6d4' }}>
+                                            {saving ? '⏳ 派工中...' : '✅ 確認派工'}
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )}
+
+                    {/* 內部備註 */}
+                    {ticket.notes_internal && !editingSummary && (
+                        <div className="detail-card" style={{ background: '#fffbeb', borderLeft: '4px solid #f59e0b' }}>
+                            <h4 style={{ margin: '0 0 4px 0' }}>⚠️ 內部備註（不外發）</h4>
+                            <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{ticket.notes_internal}</p>
+                        </div>
+                    )}
+
+                    {/* 派工紀錄 */}
+                    {ticket.dispatch_logs && ticket.dispatch_logs.length > 0 && (
+                        <div className="detail-card">
+                            <h3>📊 派工歷史</h3>
+                            {ticket.dispatch_logs.map((log, i) => (
+                                <div key={log.id} style={{
+                                    padding: '10px 14px', background: '#f9fafb', borderRadius: '8px',
+                                    marginBottom: '8px', fontSize: '13px',
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                        <span style={{ fontWeight: 'bold' }}>第 {i + 1} 次派工</span>
+                                        <span style={{ color: '#9ca3af' }}>{new Date(log.dispatched_at).toLocaleString('zh-TW')}</span>
+                                    </div>
+                                    <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: '12px', color: '#374151' }}>
+                                        {log.payload_snapshot?.message}
+                                    </pre>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </>
+            )}
+
+            {/* ====== 報修工單：師傅視圖 ====== */}
+            {isRepairTicket && !isAdmin && (
+                <>
+                    <div className="detail-card" style={{ borderLeft: '4px solid #06b6d4' }}>
+                        <h3>📋 派工資訊</h3>
+                        <div style={{ display: 'grid', gap: '10px' }}>
+                            {ticket.customer_name && (
+                                <div style={rowStyle}><span style={labelStyle}>客戶</span><span>{ticket.customer_name}</span></div>
+                            )}
+                            {ticket.phone && (
+                                <div style={rowStyle}>
+                                    <span style={labelStyle}>電話</span>
+                                    <a href={`tel:${ticket.phone}`} style={{ color: '#4f46e5', fontWeight: 'bold', textDecoration: 'none' }}>
+                                        📞 {ticket.phone}
+                                    </a>
+                                </div>
+                            )}
+                            {ticket.address && (
+                                <div style={rowStyle}>
+                                    <span style={labelStyle}>地址</span>
+                                    <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ticket.address)}`}
+                                        target="_blank" rel="noopener noreferrer"
+                                        style={{ color: '#4f46e5', fontWeight: 'bold', textDecoration: 'none' }}>
+                                        📍 {ticket.address}
+                                    </a>
+                                </div>
+                            )}
+                            {ticket.scheduled_at && (
+                                <div style={rowStyle}><span style={labelStyle}>排程</span><span style={{ fontWeight: 'bold', color: '#4f46e5' }}>🕐 {new Date(ticket.scheduled_at).toLocaleString('zh-TW')}</span></div>
+                            )}
+                            {ticket.preferred_time_slot && (
+                                <div style={rowStyle}><span style={labelStyle}>偏好時段</span><span>{ticket.preferred_time_slot}</span></div>
+                            )}
+                        </div>
+                        {ticket.description_summary && (
+                            <div style={{ marginTop: '12px', padding: '12px 16px', background: '#f0fdf4', borderRadius: '8px' }}>
+                                <div style={{ fontWeight: 'bold', marginBottom: '4px', fontSize: '13px' }}>問題摘要</div>
+                                <div style={{ whiteSpace: 'pre-wrap' }}>{ticket.description_summary}</div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* 師傅操作區 */}
+                    <div className="detail-card">
+                        <h3>📝 狀態回報</h3>
+
+                        {/* 目前狀態提示 */}
+                        <div style={{
+                            padding: '12px 16px', borderRadius: '8px', marginBottom: '16px',
+                            background: st.color + '15', border: `1px solid ${st.color}30`,
+                            textAlign: 'center', fontSize: '15px',
+                        }}>
+                            目前狀態：<span style={{ fontWeight: 'bold', color: st.color }}>{st.label}</span>
+                        </div>
+
+                        {/* 依狀態顯示對應按鈕 */}
+                        <div style={{ display: 'grid', gap: '10px' }}>
+
+                            {(ticket.status === 'dispatched' || ticket.status === 'scheduled') && (
+                                <>
+                                    {/* 完工照片上傳 */}
+                                    <div style={{ padding: '14px 16px', background: '#f9fafb', borderRadius: '10px' }}>
+                                        <label style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px', display: 'block' }}>
+                                            📷 完工照片 <span style={{ color: '#9ca3af', fontSize: '12px' }}>（選填，可多張）</span>
+                                        </label>
+                                        <input
+                                            type="file" accept="image/*" multiple
+                                            onChange={e => setCompletionPhotos(Array.from(e.target.files).slice(0, 5))}
+                                            style={{ fontSize: '14px' }}
+                                        />
+                                        {completionPhotos.length > 0 && (
+                                            <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+                                                {completionPhotos.map((f, i) => (
+                                                    <div key={i} style={{ fontSize: '12px', padding: '4px 10px', background: '#e5e7eb', borderRadius: '6px' }}>
+                                                        📎 {f.name.substring(0, 15)}...
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <button
+                                        onClick={handleCompletion}
+                                        disabled={saving}
+                                        className="btn btn-primary"
+                                        style={{ padding: '16px', fontSize: '16px', background: '#10b981' }}
+                                    >{saving ? '⏳ 回報中...' : '✅ 完工回報'}</button>
+                                </>
+                            )}
+
+                            {ticket.status === 'done' && (
+                                <div style={{
+                                    padding: '20px', textAlign: 'center', borderRadius: '10px',
+                                    background: '#f0fdf4', border: '1px solid #bbf7d0',
+                                }}>
+                                    <div style={{ fontSize: '28px', marginBottom: '8px' }}>✅</div>
+                                    <div style={{ fontWeight: 'bold', color: '#10b981' }}>已回報完工</div>
+                                    <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>等待客服確認結案</div>
+                                </div>
+                            )}
+
+                            {ticket.status === 'closed' && (
+                                <div style={{
+                                    padding: '20px', textAlign: 'center', borderRadius: '10px',
+                                    background: '#f9fafb', border: '1px solid #e5e7eb',
+                                }}>
+                                    <div style={{ fontSize: '28px', marginBottom: '8px' }}>🏁</div>
+                                    <div style={{ fontWeight: 'bold', color: '#9ca3af' }}>此案件已結案</div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </>
+            )}
+
+            {/* ====== 舊版遮罩工單視圖（非報修） ====== */}
+            {!isRepairTicket && (
+                <>
+                    {isAdmin && ticket.original_text && (
+                        <div className="detail-card">
+                            <h3>🔍 原始內容 vs 遮罩</h3>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                                <div>
+                                    <h4 style={{ color: '#ef4444' }}>原始</h4>
+                                    <pre style={{ whiteSpace: 'pre-wrap', background: '#fef2f2', padding: '12px', borderRadius: '8px', fontSize: '13px' }}>
+                                        {ticket.original_text}
+                                    </pre>
+                                </div>
+                                <div>
+                                    <h4 style={{ color: '#10b981' }}>遮罩後</h4>
+                                    <pre style={{ whiteSpace: 'pre-wrap', background: '#f0fdf4', padding: '12px', borderRadius: '8px', fontSize: '13px' }}>
+                                        {ticket.masked_text}
+                                    </pre>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    {!isAdmin && ticket.masked_text && (
+                        <div className="detail-card">
+                            <h3>📄 遮罩後內容</h3>
+                            <pre style={{ whiteSpace: 'pre-wrap', background: '#f0fdf4', padding: '12px', borderRadius: '8px', fontSize: '13px' }}>
+                                {ticket.masked_text}
+                            </pre>
+                        </div>
+                    )}
+                </>
+            )}
+
+            {/* 留言區 */}
+            <div className="detail-card">
+                <h3>💬 留言（{ticket.comments?.length || 0}）</h3>
+
+                {ticket.comments?.map(comment => (
+                    <div key={comment.id} style={{
+                        padding: '10px 14px', background: '#f9fafb', borderRadius: '8px', marginBottom: '8px',
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>
+                            <span style={{ fontWeight: 'bold', color: '#374151' }}>{comment.author}</span>
+                            <span>{new Date(comment.created_at).toLocaleString('zh-TW')}</span>
+                        </div>
+                        <div style={{ whiteSpace: 'pre-wrap' }}>{comment.content}</div>
+                    </div>
+                ))}
+
+                <form onSubmit={submitComment} style={{ marginTop: '12px' }}>
+                    <textarea rows="2" className="form-input"
+                        placeholder="輸入留言..."
+                        value={newComment} onChange={e => setNewComment(e.target.value)} />
+                    <button type="submit" className="btn btn-primary" style={{ marginTop: '8px' }}
+                        disabled={!newComment.trim()}>
+                        送出留言
+                    </button>
+                </form>
+            </div>
+        </div>
+    )
+}
+
+// 路內樣式
+const rowStyle = { display: 'flex', justifyContent: 'space-between', padding: '8px 14px', background: '#f9fafb', borderRadius: '8px' }
+const labelStyle = { color: '#6b7280', fontWeight: '500' }
