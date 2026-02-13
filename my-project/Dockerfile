@@ -31,12 +31,11 @@ COPY . .
 # 執行 post-install 腳本
 RUN composer dump-autoload --optimize
 
-# 快取設定
+# 快取設定（不在 build 階段快取路由，避免快取過期）
 RUN php artisan config:cache || true
-RUN php artisan route:cache || true
 
 # 暴露 port
 EXPOSE 8080
 
-# 啟動指令
-CMD php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=${PORT:-8080}
+# 啟動指令：先跑 migration + 重建路由快取再啟動
+CMD php artisan migrate --force && php artisan route:cache && php artisan serve --host=0.0.0.0 --port=${PORT:-8080}
