@@ -431,14 +431,15 @@ class TicketController extends Controller
      * 合法狀態轉換表
      */
     private const STATUS_TRANSITIONS = [
-        'new' => ['need_more_info', 'scheduled', 'dispatched'],
-        'need_more_info' => ['new', 'info_submitted', 'scheduled', 'dispatched'],
-        'info_submitted' => ['need_more_info', 'scheduled', 'dispatched'],
-        'scheduled' => ['dispatched'],
-        'dispatched' => ['in_progress'],
-        'in_progress' => ['done'],
-        'done' => ['closed', 'in_progress'],
+        'new' => ['need_more_info', 'dispatched', 'cancelled'],
+        'need_more_info' => ['new', 'info_submitted', 'dispatched', 'cancelled'],
+        'info_submitted' => ['need_more_info', 'dispatched', 'cancelled'],
+        'dispatched' => ['time_proposed', 'cancelled'],
+        'time_proposed' => ['in_progress', 'dispatched', 'cancelled'],
+        'in_progress' => ['done', 'cancelled'],
+        'done' => ['closed'],
         'closed' => [],
+        'cancelled' => [],
     ];
 
     /**
@@ -484,6 +485,14 @@ class TicketController extends Controller
             $ticket->supplement_note = $request->input('supplement_note');
         }
 
+        // 取消
+        if ($newStatus === 'cancelled') {
+            $ticket->cancelled_at = now();
+            $ticket->cancelled_by_role = $user ? $user->role : 'customer';
+            $ticket->cancelled_by_name = $user ? $user->name : ($request->input('customer_name') ?? '客戶');
+            $ticket->cancel_reason = $request->input('cancel_reason', '');
+        }
+
         $ticket->save();
 
         // LINE 推播通知
@@ -505,7 +514,7 @@ class TicketController extends Controller
                 );
             }
 
-            // 待補件 → 通知客戶（LINE）
+            // 待補件 → 通知客戶
             if ($newStatus === 'need_more_info' && $ticket->customer_line_id) {
                 $frontendUrl = env('FRONTEND_URL', 'https://ai-data-masker-production-fda9.up.railway.app');
                 $supplementNote = $ticket->supplement_note ? "\n\n📝 需補充：\n{$ticket->supplement_note}" : '';
@@ -515,6 +524,28 @@ class TicketController extends Controller
                     . "請點擊以下連結補充：\n{$frontendUrl}/track\n\n"
                     . "輸入維修編號和手機號碼後即可編輯。"
                 );
+            }
+
+            // 取消 → 通知所有相關方
+            if ($newStatus === 'cancelled') {
+                $cancellerName = $ticket->cancelled_by_name;
+                $reason = $ticket->cancel_reason ?: '未提供';
+                $msg = "❌ {$ticket->ticket_no} 已取消\n取消者：{$cancellerName}\n原因：{$reason}";
+                $adminLineIds = User::where('role', 'admin')
+                    ->whereNotNull('line_user_id')
+                    ->pluck('line_user_id')
+                    ->toArray();
+                $lineService->pushToMultiple($adminLineIds, $msg);
+                $workerLineIds = $ticket->assignedUsers()
+                    ->whereNotNull('line_user_id')
+                    ->pluck('line_user_id')
+                    ->toArray();
+                if (!empty($workerLineIds)) {
+                    $lineService->pushToMultiple($workerLineIds, $msg);
+                }
+                if ($ticket->customer_line_id) {
+                    $lineService->pushMessage($ticket->customer_line_id, $msg);
+                }
             }
         } catch (\Exception $e) {
             \Log::warning('LINE 狀態通知失敗: ' . $e->getMessage());
@@ -778,6 +809,13 @@ class TicketController extends Controller
             'quoted_amount' => $ticket->quoted_amount,
             'actual_amount' => $ticket->actual_amount,
             'quote_confirmed_at' => $ticket->quote_confirmed_at,
+            'proposed_time_slots' => $ticket->proposed_time_slots,
+            'confirmed_time_slot' => $ticket->confirmed_time_slot,
+            'confirmed_by' => $ticket->confirmed_by,
+            'time_confirmed_at' => $ticket->time_confirmed_at,
+            'cancelled_at' => $ticket->cancelled_at,
+            'cancelled_by_name' => $ticket->cancelled_by_name,
+            'cancel_reason' => $ticket->cancel_reason,
             'created_at' => $ticket->created_at,
             'completed_at' => $ticket->completed_at,
             'updated_at' => $ticket->updated_at,
@@ -862,6 +900,320 @@ class TicketController extends Controller
                 'id' => $ticket->id,
                 'status' => $ticket->status,
             ],
+        ]);
+    }
+
+    /**
+     * 師傅提供多個可用時段
+     * POST /api/tickets/{id}/propose-times
+     */
+    public function proposeTimeSlots(Request $request, $id)
+    {
+        $ticket = Ticket::find($id);
+        if (!$ticket) {
+            return response()->json(['message' => '找不到此工單'], 404);
+        }
+
+        if ($ticket->status !== 'dispatched') {
+            return response()->json(['message' => '此工單目前無法提供時段'], 422);
+        }
+
+        $request->validate([
+            'time_slots' => 'required|array|min:1',
+            'time_slots.*.date' => 'required|string',
+            'time_slots.*.time' => 'required|string',
+        ]);
+
+        $ticket->proposed_time_slots = $request->input('time_slots');
+        $ticket->status = 'time_proposed';
+        $ticket->save();
+
+        // LINE 通知客服 + 客戶
+        try {
+            $lineService = new LineNotifyService();
+            $user = $request->user();
+            $workerName = $user ? $user->name : '師傅';
+            $slotCount = count($request->input('time_slots'));
+            $slotList = collect($request->input('time_slots'))
+                ->map(fn($s) => "  • {$s['date']} {$s['time']}")
+                ->join("\n");
+
+            $msg = "📅 {$ticket->ticket_no} 師傅已提供時段\n師傅：{$workerName}\n\n可用時段（{$slotCount}個）：\n{$slotList}\n\n請客戶確認。";
+
+            // 通知管理員
+            $adminLineIds = User::where('role', 'admin')
+                ->whereNotNull('line_user_id')
+                ->pluck('line_user_id')
+                ->toArray();
+            $lineService->pushToMultiple($adminLineIds, $msg);
+
+            // 通知客戶
+            if ($ticket->customer_line_id) {
+                $frontendUrl = env('FRONTEND_URL', 'https://ai-data-masker-production-fda9.up.railway.app');
+                $lineService->pushMessage(
+                    $ticket->customer_line_id,
+                    "📅 您的維修單 {$ticket->ticket_no}\n師傅已提供可用時段：\n{$slotList}\n\n"
+                    . "請點擊以下連結選擇時間：\n{$frontendUrl}/track\n"
+                    . "輸入維修編號和手機號碼後即可選擇。"
+                );
+            }
+        } catch (\Exception $e) {
+            \Log::warning('LINE 時段通知失敗: ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'message' => '時段已提交',
+            'ticket' => $ticket,
+        ]);
+    }
+
+    /**
+     * 客戶確認時段（公開 API）
+     * POST /api/tickets/track/{id}/confirm-time
+     */
+    public function confirmTimeSlot(Request $request, $id)
+    {
+        $phone = $request->input('phone', '');
+        $ticketNo = $request->input('ticket_no', '');
+
+        $ticket = Ticket::where('id', $id)
+            ->where('phone', $phone)
+            ->where('ticket_no', $ticketNo)
+            ->first();
+
+        if (!$ticket) {
+            return response()->json(['message' => '找不到此工單，或驗證資訊不符'], 404);
+        }
+
+        if ($ticket->status !== 'time_proposed') {
+            return response()->json(['message' => '此工單目前不接受時段確認'], 422);
+        }
+
+        $request->validate([
+            'selected_slot' => 'required|string',
+        ]);
+
+        $ticket->confirmed_time_slot = $request->input('selected_slot');
+        $ticket->confirmed_by = 'customer';
+        $ticket->time_confirmed_at = now();
+        $ticket->status = 'in_progress';
+        $ticket->save();
+
+        // LINE 通知師傅 + 客服
+        try {
+            $lineService = new LineNotifyService();
+            $selectedSlot = $request->input('selected_slot');
+            $msg = "✅ {$ticket->ticket_no} 客戶已確認時段\n確認時段：{$selectedSlot}";
+
+            $adminLineIds = User::where('role', 'admin')
+                ->whereNotNull('line_user_id')
+                ->pluck('line_user_id')
+                ->toArray();
+            $lineService->pushToMultiple($adminLineIds, $msg);
+
+            $workerLineIds = $ticket->assignedUsers()
+                ->whereNotNull('line_user_id')
+                ->pluck('line_user_id')
+                ->toArray();
+            if (!empty($workerLineIds)) {
+                $lineService->pushToMultiple($workerLineIds, $msg);
+            }
+        } catch (\Exception $e) {
+            \Log::warning('LINE 確認時段通知失敗: ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'message' => '時段確認成功',
+            'ticket' => [
+                'id' => $ticket->id,
+                'status' => $ticket->status,
+                'confirmed_time_slot' => $ticket->confirmed_time_slot,
+            ],
+        ]);
+    }
+
+    /**
+     * 客服代客確認時段
+     * POST /api/tickets/{id}/confirm-time
+     */
+    public function adminConfirmTime(Request $request, $id)
+    {
+        $ticket = Ticket::find($id);
+        if (!$ticket) {
+            return response()->json(['message' => '找不到此工單'], 404);
+        }
+
+        if ($ticket->status !== 'time_proposed') {
+            return response()->json(['message' => '此工單目前不接受時段確認'], 422);
+        }
+
+        $request->validate([
+            'selected_slot' => 'required|string',
+            'confirm_reason' => 'required|string',
+        ]);
+
+        $user = $request->user();
+        $adminName = $user ? $user->name : '客服';
+
+        $ticket->confirmed_time_slot = $request->input('selected_slot');
+        $ticket->confirmed_by = "admin:{$adminName}（代客選擇）";
+        $ticket->confirm_reason = $request->input('confirm_reason');
+        $ticket->time_confirmed_at = now();
+        $ticket->status = 'in_progress';
+        $ticket->save();
+
+        // LINE 通知客戶 + 師傅
+        try {
+            $lineService = new LineNotifyService();
+            $selectedSlot = $request->input('selected_slot');
+
+            // 通知客戶
+            if ($ticket->customer_line_id) {
+                $lineService->pushMessage(
+                    $ticket->customer_line_id,
+                    "✅ 您的維修單 {$ticket->ticket_no}\n已確認維修時段：{$selectedSlot}\n（由客服 {$adminName} 代為確認）\n\n如有問題請聯繫客服。"
+                );
+            }
+
+            // 通知師傅
+            $workerLineIds = $ticket->assignedUsers()
+                ->whereNotNull('line_user_id')
+                ->pluck('line_user_id')
+                ->toArray();
+            if (!empty($workerLineIds)) {
+                $lineService->pushToMultiple(
+                    $workerLineIds,
+                    "✅ {$ticket->ticket_no} 時段已確認\n確認時段：{$selectedSlot}\n（客服 {$adminName} 代客選擇）"
+                );
+            }
+        } catch (\Exception $e) {
+            \Log::warning('LINE 代客確認通知失敗: ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'message' => '代客確認時段成功',
+            'ticket' => $ticket,
+        ]);
+    }
+
+    /**
+     * 客戶取消工單（公開 API）
+     * POST /api/tickets/track/{id}/cancel
+     */
+    public function customerCancelTicket(Request $request, $id)
+    {
+        $phone = $request->input('phone', '');
+        $ticketNo = $request->input('ticket_no', '');
+
+        $ticket = Ticket::where('id', $id)
+            ->where('phone', $phone)
+            ->where('ticket_no', $ticketNo)
+            ->first();
+
+        if (!$ticket) {
+            return response()->json(['message' => '找不到此工單，或驗證資訊不符'], 404);
+        }
+
+        $cancelable = ['new', 'dispatched', 'time_proposed', 'in_progress'];
+        if (!in_array($ticket->status, $cancelable)) {
+            return response()->json(['message' => '此工單目前無法取消'], 422);
+        }
+
+        $request->validate([
+            'cancel_reason' => 'required|string|min:2',
+        ]);
+
+        $ticket->status = 'cancelled';
+        $ticket->cancelled_at = now();
+        $ticket->cancelled_by_role = 'customer';
+        $ticket->cancelled_by_name = $ticket->customer_name ?: '客戶';
+        $ticket->cancel_reason = $request->input('cancel_reason');
+        $ticket->save();
+
+        // LINE 通知客服 + 師傅
+        try {
+            $lineService = new LineNotifyService();
+            $reason = $ticket->cancel_reason;
+            $msg = "❌ {$ticket->ticket_no} 客戶已取消\n客戶：{$ticket->customer_name}\n原因：{$reason}";
+
+            $adminLineIds = User::where('role', 'admin')
+                ->whereNotNull('line_user_id')
+                ->pluck('line_user_id')
+                ->toArray();
+            $lineService->pushToMultiple($adminLineIds, $msg);
+
+            $workerLineIds = $ticket->assignedUsers()
+                ->whereNotNull('line_user_id')
+                ->pluck('line_user_id')
+                ->toArray();
+            if (!empty($workerLineIds)) {
+                $lineService->pushToMultiple($workerLineIds, $msg);
+            }
+        } catch (\Exception $e) {
+            \Log::warning('LINE 客戶取消通知失敗: ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'message' => '工單已取消',
+            'ticket' => ['id' => $ticket->id, 'status' => $ticket->status],
+        ]);
+    }
+
+    /**
+     * 師傅取消接單（回到已派工）
+     * POST /api/tickets/{id}/cancel-accept
+     */
+    public function workerCancelAcceptance(Request $request, $id)
+    {
+        $ticket = Ticket::find($id);
+        if (!$ticket) {
+            return response()->json(['message' => '找不到此工單'], 404);
+        }
+
+        $cancelable = ['dispatched', 'time_proposed'];
+        if (!in_array($ticket->status, $cancelable)) {
+            return response()->json(['message' => '此工單目前無法取消接單'], 422);
+        }
+
+        $request->validate([
+            'cancel_reason' => 'required|string|min:2',
+        ]);
+
+        $user = $request->user();
+        $workerName = $user ? $user->name : '師傅';
+
+        // 回到已派工，清除排程資料
+        $ticket->status = 'dispatched';
+        $ticket->proposed_time_slots = null;
+        $ticket->confirmed_time_slot = null;
+        $ticket->confirmed_by = null;
+        $ticket->confirm_reason = null;
+        $ticket->time_confirmed_at = null;
+        $ticket->assigned_to = null;
+        $ticket->accepted_at = null;
+
+        // 解除師傅關聯
+        $ticket->assignedUsers()->detach();
+        $ticket->save();
+
+        // LINE 通知客服
+        try {
+            $lineService = new LineNotifyService();
+            $reason = $request->input('cancel_reason');
+            $msg = "⚠️ {$ticket->ticket_no} 師傅取消接單\n師傅：{$workerName}\n原因：{$reason}\n\n請重新分配師傅。";
+
+            $adminLineIds = User::where('role', 'admin')
+                ->whereNotNull('line_user_id')
+                ->pluck('line_user_id')
+                ->toArray();
+            $lineService->pushToMultiple($adminLineIds, $msg);
+        } catch (\Exception $e) {
+            \Log::warning('LINE 師傅取消接單通知失敗: ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'message' => '已取消接單，工單回到待派工',
+            'ticket' => $ticket,
         ]);
     }
 

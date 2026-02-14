@@ -44,17 +44,31 @@ class Ticket extends Model
         'actual_amount',
         'quote_confirmed_at',
         'customer_line_id',
+        // 排程
+        'proposed_time_slots',
+        'confirmed_time_slot',
+        'confirmed_by',
+        'confirm_reason',
+        'time_confirmed_at',
+        // 取消
+        'cancelled_at',
+        'cancelled_by_role',
+        'cancelled_by_name',
+        'cancel_reason',
     ];
 
     protected $casts = [
         'stats' => 'array',
         'field_values' => 'array',
         'masked_fields' => 'array',
+        'proposed_time_slots' => 'array',
         'completed_at' => 'datetime',
         'scheduled_at' => 'datetime',
         'is_urgent' => 'boolean',
         'accepted_at' => 'datetime',
         'quote_confirmed_at' => 'datetime',
+        'time_confirmed_at' => 'datetime',
+        'cancelled_at' => 'datetime',
     ];
 
     // === 關聯 ===

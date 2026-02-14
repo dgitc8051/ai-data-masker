@@ -18,6 +18,8 @@ Route::get('/tickets/track', [TicketController::class, 'trackByPhone']); // 公�
 Route::get('/tickets/track/{id}', [TicketController::class, 'trackDetail']); // 公開詳情（遮罩版）
 Route::post('/tickets/track/{id}/confirm-quote', [TicketController::class, 'confirmQuote']); // 客戶確認報價
 Route::patch('/tickets/track/{id}/supplement', [TicketController::class, 'supplementTicket']); // 客戶補件
+Route::post('/tickets/track/{id}/confirm-time', [TicketController::class, 'confirmTimeSlot']); // 客戶確認時段
+Route::post('/tickets/track/{id}/cancel', [TicketController::class, 'customerCancelTicket']); // 客戶取消
 Route::post('/line/webhook', [LineWebhookController::class, 'webhook']); // LINE Webhook
 
 // === 需要登入的路由 ===
@@ -66,6 +68,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/tickets/{id}/accept', [TicketController::class, 'acceptTicket']);
     Route::post('/tickets/{id}/quote', [TicketController::class, 'submitQuote']);
     Route::post('/tickets/{id}/attachments', [TicketController::class, 'uploadAttachment']);
+    Route::post('/tickets/{id}/propose-times', [TicketController::class, 'proposeTimeSlots']); // 師傅提供時段
+    Route::post('/tickets/{id}/confirm-time', [TicketController::class, 'adminConfirmTime']); // 客服代客確認時段
+    Route::post('/tickets/{id}/cancel-accept', [TicketController::class, 'workerCancelAcceptance']); // 師傅取消接單
 
     // LINE 綁定
     Route::patch('/users/{id}/line', [LineWebhookController::class, 'bindLineUser']);

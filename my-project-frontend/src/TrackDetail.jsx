@@ -6,12 +6,13 @@ const statusMap = {
     pending: { label: '待處理', color: '#f59e0b', icon: '⏳' },
     need_more_info: { label: '待補件', color: '#ef4444', icon: '📢' },
     info_submitted: { label: '補件完成待審核', color: '#f97316', icon: '📥' },
-    scheduled: { label: '已排程', color: '#8b5cf6', icon: '📅' },
     dispatched: { label: '已派工', color: '#3b82f6', icon: '🚗' },
+    time_proposed: { label: '請選擇時段', color: '#8b5cf6', icon: '📅' },
     in_progress: { label: '處理中', color: '#8b5cf6', icon: '🔧' },
     done: { label: '已完工', color: '#10b981', icon: '✅' },
     completed: { label: '已結案', color: '#6b7280', icon: '📁' },
     closed: { label: '已關閉', color: '#6b7280', icon: '🔒' },
+    cancelled: { label: '已取消', color: '#ef4444', icon: '❌' },
 }
 
 // 進度步驟
@@ -31,6 +32,13 @@ export default function TrackDetail() {
     const [editForm, setEditForm] = useState({})
     const [submitting, setSubmitting] = useState(false)
     const [submitted, setSubmitted] = useState(false)
+    // 時段選擇
+    const [selectedSlot, setSelectedSlot] = useState('')
+    const [timeConfirmed, setTimeConfirmed] = useState(false)
+    // 取消
+    const [showCancel, setShowCancel] = useState(false)
+    const [cancelReason, setCancelReason] = useState('')
+    const [cancelling, setCancelling] = useState(false)
 
     useEffect(() => {
         if (!phone || !ticketNo) {
@@ -355,6 +363,125 @@ export default function TrackDetail() {
                     </div>
                 )}
 
+                {/* ===== 師傅提供時段選擇 ===== */}
+                {ticket.status === 'time_proposed' && !timeConfirmed && (
+                    <div style={{
+                        background: 'rgba(139,92,246,0.1)', borderRadius: '14px',
+                        padding: '20px', border: '1px solid rgba(139,92,246,0.3)',
+                        marginBottom: '16px',
+                    }}>
+                        <div style={{ fontSize: '18px', fontWeight: '700', color: '#a78bfa', marginBottom: '12px' }}>
+                            📅 請選擇維修時段
+                        </div>
+                        <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '13px', marginBottom: '14px' }}>
+                            師傅已提供以下可用時段，請選擇您方便的時間
+                        </div>
+                        <div style={{ display: 'grid', gap: '8px', marginBottom: '16px' }}>
+                            {(ticket.proposed_time_slots || []).map((slot, i) => (
+                                <label key={i} style={{
+                                    display: 'flex', alignItems: 'center', gap: '10px',
+                                    padding: '14px 16px', borderRadius: '10px', cursor: 'pointer',
+                                    background: selectedSlot === `${slot.date} ${slot.time}` ? 'rgba(139,92,246,0.2)' : 'rgba(255,255,255,0.06)',
+                                    border: selectedSlot === `${slot.date} ${slot.time}` ? '2px solid #8b5cf6' : '1px solid rgba(255,255,255,0.1)',
+                                    transition: 'all 0.2s',
+                                }}>
+                                    <input
+                                        type="radio"
+                                        name="customerSlot"
+                                        value={`${slot.date} ${slot.time}`}
+                                        checked={selectedSlot === `${slot.date} ${slot.time}`}
+                                        onChange={e => setSelectedSlot(e.target.value)}
+                                    />
+                                    <span style={{ color: '#fff', fontSize: '15px', fontWeight: '500' }}>{slot.date} {slot.time}</span>
+                                </label>
+                            ))}
+                        </div>
+                        <button
+                            onClick={async () => {
+                                if (!selectedSlot) return
+                                setSubmitting(true)
+                                try {
+                                    const res = await fetch(
+                                        `${import.meta.env.VITE_API_URL}/api/tickets/track/${id}/confirm-time`,
+                                        {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ phone, ticket_no: ticketNo, selected_slot: selectedSlot }),
+                                        }
+                                    )
+                                    const data = await res.json()
+                                    if (res.ok) {
+                                        setTimeConfirmed(true)
+                                        fetchDetail()
+                                    } else {
+                                        alert(data.message || '確認失敗')
+                                    }
+                                } catch (e) {
+                                    alert('網路錯誤')
+                                } finally {
+                                    setSubmitting(false)
+                                }
+                            }}
+                            disabled={!selectedSlot || submitting}
+                            style={{
+                                width: '100%', padding: '14px', borderRadius: '12px',
+                                border: 'none', cursor: !selectedSlot || submitting ? 'not-allowed' : 'pointer',
+                                background: selectedSlot ? 'linear-gradient(135deg, #8b5cf6, #6d28d9)' : 'rgba(255,255,255,0.1)',
+                                color: '#fff', fontSize: '16px', fontWeight: '700',
+                                opacity: !selectedSlot || submitting ? 0.5 : 1,
+                            }}
+                        >
+                            {submitting ? '⏳ 確認中...' : '✅ 確認這個時段'}
+                        </button>
+                    </div>
+                )}
+
+                {/* 時段確認成功 */}
+                {timeConfirmed && (
+                    <div style={{
+                        background: 'rgba(16,185,129,0.1)', borderRadius: '14px',
+                        padding: '20px', border: '1px solid rgba(16,185,129,0.3)',
+                        marginBottom: '16px', textAlign: 'center',
+                    }}>
+                        <div style={{ fontSize: '32px', marginBottom: '8px' }}>✅</div>
+                        <div style={{ color: '#34d399', fontSize: '16px', fontWeight: '700' }}>
+                            時段已確認！
+                        </div>
+                        <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', marginTop: '6px' }}>
+                            師傅將於您選擇的時段前往處理
+                        </div>
+                    </div>
+                )}
+
+                {/* 已確認時段顯示 */}
+                {ticket.confirmed_time_slot && ticket.status !== 'time_proposed' && (
+                    <div style={{
+                        background: 'rgba(16,185,129,0.08)', borderRadius: '14px',
+                        padding: '16px 20px', border: '1px solid rgba(16,185,129,0.2)',
+                        marginBottom: '16px',
+                    }}>
+                        <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginBottom: '6px' }}>✅ 確認維修時段</div>
+                        <div style={{ color: '#34d399', fontSize: '16px', fontWeight: '600' }}>{ticket.confirmed_time_slot}</div>
+                    </div>
+                )}
+
+                {/* 已取消顯示 */}
+                {ticket.status === 'cancelled' && (
+                    <div style={{
+                        background: 'rgba(239,68,68,0.1)', borderRadius: '14px',
+                        padding: '20px', border: '1px solid rgba(239,68,68,0.3)',
+                        marginBottom: '16px', textAlign: 'center',
+                    }}>
+                        <div style={{ fontSize: '32px', marginBottom: '8px' }}>❌</div>
+                        <div style={{ color: '#fca5a5', fontSize: '16px', fontWeight: '700' }}>工單已取消</div>
+                        {ticket.cancel_reason && (
+                            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', marginTop: '8px' }}>
+                                原因：{ticket.cancel_reason}
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* 待補件說明（非補件狀態時也顯示） */}
                 {ticket.supplement_note && ticket.status !== 'need_more_info' && (
                     <div style={{
@@ -501,6 +628,82 @@ export default function TrackDetail() {
                         </div>
                     )}
                 </div>
+
+                {/* 客戶取消工單 */}
+                {!['done', 'closed', 'cancelled'].includes(ticket.status) && (
+                    <div style={{ marginBottom: '16px' }}>
+                        <button
+                            onClick={() => setShowCancel(!showCancel)}
+                            style={{
+                                width: '100%', padding: '12px', borderRadius: '10px',
+                                border: '1px solid rgba(239,68,68,0.3)', cursor: 'pointer',
+                                background: showCancel ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.06)',
+                                color: '#fca5a5', fontSize: '14px', fontWeight: '600',
+                            }}
+                        >
+                            ❌ 我要取消此工單
+                        </button>
+                        {showCancel && (
+                            <div style={{
+                                padding: '16px', background: 'rgba(239,68,68,0.08)',
+                                borderRadius: '0 0 10px 10px', border: '1px solid rgba(239,68,68,0.2)',
+                                borderTop: 'none',
+                            }}>
+                                <textarea
+                                    value={cancelReason}
+                                    onChange={e => setCancelReason(e.target.value)}
+                                    placeholder="請輸入取消原因..."
+                                    rows={2}
+                                    style={{
+                                        width: '100%', padding: '10px', borderRadius: '8px',
+                                        border: '1px solid rgba(239,68,68,0.3)', fontSize: '14px',
+                                        resize: 'vertical', boxSizing: 'border-box',
+                                        background: 'rgba(255,255,255,0.06)', color: '#fff',
+                                    }}
+                                />
+                                <button
+                                    onClick={async () => {
+                                        if (!cancelReason) return
+                                        setCancelling(true)
+                                        try {
+                                            const res = await fetch(
+                                                `${import.meta.env.VITE_API_URL}/api/tickets/track/${id}/cancel`,
+                                                {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({ phone, ticket_no: ticketNo, cancel_reason: cancelReason }),
+                                                }
+                                            )
+                                            const data = await res.json()
+                                            if (res.ok) {
+                                                setShowCancel(false)
+                                                setCancelReason('')
+                                                fetchDetail()
+                                            } else {
+                                                alert(data.message || '取消失敗')
+                                            }
+                                        } catch (e) {
+                                            alert('網路錯誤')
+                                        } finally {
+                                            setCancelling(false)
+                                        }
+                                    }}
+                                    disabled={!cancelReason || cancelling}
+                                    style={{
+                                        width: '100%', padding: '12px', borderRadius: '10px',
+                                        border: 'none', marginTop: '10px',
+                                        background: cancelReason ? '#ef4444' : 'rgba(255,255,255,0.1)',
+                                        color: '#fff', fontSize: '14px', fontWeight: '700',
+                                        cursor: !cancelReason || cancelling ? 'not-allowed' : 'pointer',
+                                        opacity: !cancelReason || cancelling ? 0.5 : 1,
+                                    }}
+                                >
+                                    {cancelling ? '⏳ 取消中...' : '確認取消工單'}
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Privacy Notice */}
                 <div style={{
