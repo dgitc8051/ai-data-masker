@@ -85,7 +85,7 @@ export default function RepairTrack() {
                     <input
                         type="text" value={ticketNo}
                         onChange={e => setTicketNo(e.target.value)}
-                        placeholder="例如：TK250215001"
+                        placeholder="例如：TK260215001"
                         style={{
                             width: '100%', padding: '12px 16px', borderRadius: '10px',
                             border: '1px solid rgba(255,255,255,0.15)', fontSize: '15px',
