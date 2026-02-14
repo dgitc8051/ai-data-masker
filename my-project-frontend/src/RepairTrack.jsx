@@ -32,7 +32,7 @@ export default function RepairTrack() {
 
     // LIFF 初始化
     useEffect(() => {
-        const liffId = import.meta.env.VITE_LIFF_ID
+        const liffId = import.meta.env.VITE_LIFF_ID_TRACK
         if (!liffId) {
             // 沒有 LIFF ID → 直接顯示手動查詢
             setLiffReady(true)
@@ -41,8 +41,8 @@ export default function RepairTrack() {
         liff.init({ liffId })
             .then(async () => {
                 if (!liff.isLoggedIn()) {
-                    // 非 LINE 環境 → 不強制登入，直接顯示手動查詢
-                    setLiffReady(true)
+                    // 強制 LINE 登入（此 LIFF 端點為 /track，不會 400）
+                    liff.login({ redirectUri: window.location.href })
                     return
                 }
                 try {
