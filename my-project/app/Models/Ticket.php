@@ -36,6 +36,12 @@ class Ticket extends Model
         'assigned_to',
         'stats',
         'completed_at',
+        // 工作流程
+        'accepted_at',
+        'completion_note',
+        'quoted_amount',
+        'actual_amount',
+        'quote_confirmed_at',
     ];
 
     protected $casts = [
@@ -45,6 +51,8 @@ class Ticket extends Model
         'completed_at' => 'datetime',
         'scheduled_at' => 'datetime',
         'is_urgent' => 'boolean',
+        'accepted_at' => 'datetime',
+        'quote_confirmed_at' => 'datetime',
     ];
 
     // === 關聯 ===

@@ -7,14 +7,24 @@ const STATUS_MAP = {
     need_more_info: { label: '待補件', color: '#f59e0b' },
     scheduled: { label: '已排程', color: '#8b5cf6' },
     dispatched: { label: '已派工', color: '#06b6d4' },
+    in_progress: { label: '處理中', color: '#f97316' },
     done: { label: '完工', color: '#10b981' },
     closed: { label: '結案', color: '#9ca3af' },
+    // 舊狀態相容
     pending: { label: '待處理', color: '#f59e0b' },
     processing: { label: '處理中', color: '#3b82f6' },
     completed: { label: '已完成', color: '#10b981' },
 }
 
-const STATUS_FLOW = ['new', 'need_more_info', 'scheduled', 'dispatched', 'done', 'closed']
+const STATUS_TRANSITIONS = {
+    new: ['need_more_info', 'scheduled', 'dispatched'],
+    need_more_info: ['new', 'scheduled', 'dispatched'],
+    scheduled: ['dispatched'],
+    dispatched: ['in_progress'],
+    in_progress: ['done'],
+    done: ['closed', 'in_progress'],
+    closed: [],
+}
 
 export default function TicketDetail() {
     const { id } = useParams()
@@ -30,6 +40,14 @@ export default function TicketDetail() {
     const [dispatchResult, setDispatchResult] = useState(null)
     const [saving, setSaving] = useState(false)
     const [completionPhotos, setCompletionPhotos] = useState([])
+    // 派工選師傅
+    const [selectedWorkers, setSelectedWorkers] = useState([])
+    // 師傅報價
+    const [quoteAmount, setQuoteAmount] = useState('')
+    const [quoteDesc, setQuoteDesc] = useState('')
+    // 完工說明
+    const [completionNote, setCompletionNote] = useState('')
+    const [actualAmount, setActualAmount] = useState('')
 
     const isAdmin = user?.role === 'admin'
     const isRepairTicket = ticket?.category != null
@@ -58,12 +76,12 @@ export default function TicketDetail() {
     }, [id]) // eslint-disable-line
 
     // 更新狀態
-    const updateStatus = async (newStatus) => {
+    const updateStatus = async (newStatus, extra = {}) => {
         setSaving(true)
         await authFetch(`${API}/api/tickets/${id}/status`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: newStatus }),
+            body: JSON.stringify({ status: newStatus, ...extra }),
         })
         fetchTicket()
         setSaving(false)
@@ -98,14 +116,18 @@ export default function TicketDetail() {
         setSaving(false)
     }
 
-    // 派工
+    // 派工（含選師傅）
     const handleDispatch = async () => {
         setSaving(true)
         try {
+            const body = {}
+            if (selectedWorkers.length > 0) {
+                body.technician_ids = selectedWorkers
+            }
             const res = await authFetch(`${API}/api/tickets/${id}/dispatch`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({}),
+                body: JSON.stringify(body),
             })
             const data = await res.json()
             setDispatchResult(data.dispatch)
@@ -129,12 +151,47 @@ export default function TicketDetail() {
         fetchTicket()
     }
 
+    // 師傅接案
+    const handleAccept = async () => {
+        if (!confirm('確定要接案嗎？')) return
+        setSaving(true)
+        try {
+            await authFetch(`${API}/api/tickets/${id}/accept`, { method: 'POST' })
+            fetchTicket()
+        } catch (err) {
+            alert('接案失敗')
+        }
+        setSaving(false)
+    }
+
+    // 師傅報價
+    const handleSubmitQuote = async () => {
+        if (!quoteAmount || Number(quoteAmount) < 0) return
+        setSaving(true)
+        try {
+            await authFetch(`${API}/api/tickets/${id}/quote`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    quoted_amount: Number(quoteAmount),
+                    description: quoteDesc || undefined,
+                }),
+            })
+            setQuoteAmount('')
+            setQuoteDesc('')
+            fetchTicket()
+        } catch (err) {
+            alert('報價失敗')
+        }
+        setSaving(false)
+    }
+
     // 師傅完工回報
     const handleCompletion = async () => {
         if (!confirm('確定要回報完工嗎？')) return
         setSaving(true)
         try {
-            // 上傳完工照（如果有的話）
+            // 上傳完工照
             if (completionPhotos.length > 0) {
                 const formData = new FormData()
                 completionPhotos.forEach(f => formData.append('attachments[]', f))
@@ -144,9 +201,14 @@ export default function TicketDetail() {
                     body: formData,
                 })
             }
-            // 更新狀態為完工
-            await updateStatus('done')
+            // 更新狀態為完工（含說明+金額）
+            await updateStatus('done', {
+                completion_note: completionNote || undefined,
+                actual_amount: actualAmount ? Number(actualAmount) : undefined,
+            })
             setCompletionPhotos([])
+            setCompletionNote('')
+            setActualAmount('')
         } catch (err) {
             alert('回報失敗：' + err.message)
         }
@@ -157,6 +219,7 @@ export default function TicketDetail() {
     if (!ticket) return <div className="container"><p>❌ 找不到工單</p></div>
 
     const st = STATUS_MAP[ticket.status] || STATUS_MAP.pending
+    const allowedNext = STATUS_TRANSITIONS[ticket.status] || []
 
     return (
         <div className="container">
@@ -219,42 +282,79 @@ export default function TicketDetail() {
                             </div>
                         )}
 
-                        {/* 現場照片（報修時上傳） */}
+                        {/* 現場照片 */}
                         {ticket.attachments && ticket.attachments.filter(a => a.file_type !== 'completion').length > 0 && (
                             <div>
                                 <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px' }}>📷 現場照片</div>
                                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                                     {ticket.attachments.filter(a => a.file_type !== 'completion').map(att => (
-                                        <img
-                                            key={att.id}
-                                            src={`${API}/storage/${att.file_path}`}
-                                            alt={att.original_name}
+                                        <img key={att.id} src={`${API}/storage/${att.file_path}`} alt={att.original_name}
                                             style={{ width: '120px', height: '120px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #e5e7eb', cursor: 'pointer' }}
-                                            onClick={() => window.open(`${API}/storage/${att.file_path}`, '_blank')}
-                                        />
+                                            onClick={() => window.open(`${API}/storage/${att.file_path}`, '_blank')} />
                                     ))}
                                 </div>
                             </div>
                         )}
 
-                        {/* 完工照片（師傅上傳） */}
+                        {/* 完工照片 */}
                         {ticket.attachments && ticket.attachments.filter(a => a.file_type === 'completion').length > 0 && (
                             <div style={{ marginTop: '16px' }}>
                                 <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px', color: '#10b981' }}>✅ 完工照片</div>
                                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                                     {ticket.attachments.filter(a => a.file_type === 'completion').map(att => (
-                                        <img
-                                            key={att.id}
-                                            src={`${API}/storage/${att.file_path}`}
-                                            alt={att.original_name}
+                                        <img key={att.id} src={`${API}/storage/${att.file_path}`} alt={att.original_name}
                                             style={{ width: '120px', height: '120px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #10b981', cursor: 'pointer' }}
-                                            onClick={() => window.open(`${API}/storage/${att.file_path}`, '_blank')}
-                                        />
+                                            onClick={() => window.open(`${API}/storage/${att.file_path}`, '_blank')} />
                                     ))}
                                 </div>
                             </div>
                         )}
                     </div>
+
+                    {/* 報價/金額資訊 */}
+                    {(ticket.quoted_amount || ticket.actual_amount) && (
+                        <div className="detail-card" style={{ borderLeft: '4px solid #f59e0b' }}>
+                            <h3>💰 費用資訊</h3>
+                            <div style={{ display: 'grid', gap: '10px' }}>
+                                {ticket.quoted_amount && (
+                                    <div style={rowStyle}>
+                                        <span style={labelStyle}>師傅報價</span>
+                                        <span style={{ fontWeight: 'bold' }}>${ticket.quoted_amount}</span>
+                                    </div>
+                                )}
+                                {ticket.quote_confirmed_at ? (
+                                    <div style={rowStyle}>
+                                        <span style={labelStyle}>客戶確認</span>
+                                        <span style={{ color: '#10b981', fontWeight: 'bold' }}>✅ {new Date(ticket.quote_confirmed_at).toLocaleString('zh-TW')}</span>
+                                    </div>
+                                ) : ticket.quoted_amount ? (
+                                    <div style={rowStyle}>
+                                        <span style={labelStyle}>客戶確認</span>
+                                        <span style={{ color: '#f59e0b', fontWeight: 'bold' }}>⏳ 等待確認</span>
+                                    </div>
+                                ) : null}
+                                {ticket.actual_amount && (
+                                    <div style={rowStyle}>
+                                        <span style={labelStyle}>實收金額</span>
+                                        <span style={{ fontWeight: 'bold' }}>${ticket.actual_amount}</span>
+                                    </div>
+                                )}
+                                {ticket.quoted_amount && ticket.actual_amount && Number(ticket.actual_amount) > Number(ticket.quoted_amount) * 1.2 && (
+                                    <div style={{ padding: '8px 14px', background: '#fef2f2', borderRadius: '8px', color: '#ef4444', fontSize: '13px', fontWeight: 'bold' }}>
+                                        ⚠️ 實收金額超出報價 20% 以上
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 完工說明 */}
+                    {ticket.completion_note && (
+                        <div className="detail-card" style={{ borderLeft: '4px solid #10b981' }}>
+                            <h4 style={{ margin: '0 0 4px 0' }}>📝 完工說明</h4>
+                            <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{ticket.completion_note}</p>
+                        </div>
+                    )}
 
                     {/* 客服操作區 */}
                     <div className="detail-card">
@@ -305,36 +405,34 @@ export default function TicketDetail() {
                             </div>
                         )}
 
-                        {/* 狀態變更 */}
+                        {/* 狀態變更：只顯示合法的下一步 */}
                         <div style={{ marginBottom: '16px' }}>
                             <label style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '6px', display: 'block' }}>狀態變更</label>
-                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                {STATUS_FLOW.map(s => {
-                                    const stInfo = STATUS_MAP[s]
-                                    return (
-                                        <button
-                                            key={s}
-                                            onClick={() => updateStatus(s)}
-                                            disabled={ticket.status === s || saving}
-                                            className={ticket.status === s ? 'btn btn-primary' : 'btn btn-secondary'}
-                                            style={{
-                                                fontSize: '12px', padding: '6px 12px',
-                                                opacity: ticket.status === s ? 1 : 0.8,
-                                            }}
-                                        >{stInfo.label}</button>
-                                    )
-                                })}
-                            </div>
+                            {allowedNext.length > 0 ? (
+                                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                    {allowedNext.map(s => {
+                                        const stInfo = STATUS_MAP[s]
+                                        return (
+                                            <button key={s} onClick={() => updateStatus(s)} disabled={saving}
+                                                className="btn btn-secondary"
+                                                style={{ fontSize: '12px', padding: '6px 12px', borderColor: stInfo.color, color: stInfo.color }}>
+                                                → {stInfo.label}
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+                            ) : (
+                                <div style={{ fontSize: '13px', color: '#9ca3af' }}>已結案，無法變更狀態</div>
+                            )}
                         </div>
 
                         {/* 派工按鈕 */}
-                        <button
-                            onClick={() => setShowDispatch(true)}
-                            className="btn btn-primary"
-                            style={{ width: '100%', padding: '14px', fontSize: '16px', background: '#06b6d4' }}
-                        >
-                            🚀 產生外勤版派工
-                        </button>
+                        {['new', 'need_more_info', 'scheduled'].includes(ticket.status) && (
+                            <button onClick={() => setShowDispatch(true)} className="btn btn-primary"
+                                style={{ width: '100%', padding: '14px', fontSize: '16px', background: '#06b6d4' }}>
+                                🚀 產生外勤版派工
+                            </button>
+                        )}
                     </div>
 
                     {/* 派工預覽 Modal */}
@@ -345,11 +443,8 @@ export default function TicketDetail() {
                                 <>
                                     <pre style={{
                                         background: '#1e293b', color: '#e2e8f0', padding: '16px',
-                                        borderRadius: '8px', whiteSpace: 'pre-wrap', fontSize: '14px',
-                                        lineHeight: '1.8',
-                                    }}>
-                                        {dispatchResult.message}
-                                    </pre>
+                                        borderRadius: '8px', whiteSpace: 'pre-wrap', fontSize: '14px', lineHeight: '1.8',
+                                    }}>{dispatchResult.message}</pre>
                                     <p style={{ textAlign: 'center', color: '#10b981', fontWeight: 'bold', marginTop: '12px' }}>
                                         ✅ 已派工完成！
                                     </p>
@@ -358,6 +453,41 @@ export default function TicketDetail() {
                                 </>
                             ) : (
                                 <>
+                                    {/* 選擇師傅 */}
+                                    <div style={{ marginBottom: '16px' }}>
+                                        <label style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px', display: 'block' }}>
+                                            👷 指派師傅
+                                        </label>
+                                        {workers.length > 0 ? (
+                                            <div style={{ display: 'grid', gap: '6px' }}>
+                                                {workers.map(w => (
+                                                    <label key={w.id} style={{
+                                                        display: 'flex', alignItems: 'center', gap: '10px',
+                                                        padding: '10px 14px', background: selectedWorkers.includes(w.id) ? '#e0f2fe' : 'white',
+                                                        borderRadius: '8px', cursor: 'pointer',
+                                                        border: `1px solid ${selectedWorkers.includes(w.id) ? '#06b6d4' : '#e5e7eb'}`,
+                                                    }}>
+                                                        <input type="checkbox"
+                                                            checked={selectedWorkers.includes(w.id)}
+                                                            onChange={e => {
+                                                                if (e.target.checked) {
+                                                                    setSelectedWorkers([...selectedWorkers, w.id])
+                                                                } else {
+                                                                    setSelectedWorkers(selectedWorkers.filter(id => id !== w.id))
+                                                                }
+                                                            }} />
+                                                        <span style={{ fontWeight: '600' }}>{w.name}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p style={{ color: '#9ca3af', fontSize: '13px' }}>尚無可用師傅</p>
+                                        )}
+                                        <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '6px' }}>
+                                            💡 不選師傅 = 所有師傅都能看到並自行接案
+                                        </p>
+                                    </div>
+
                                     <p style={{ color: '#374151', fontSize: '14px', marginBottom: '12px' }}>
                                         系統將自動套用「最小揭露規則」：
                                     </p>
@@ -368,12 +498,7 @@ export default function TicketDetail() {
                                         <li>Email / 證件 → 不顯示</li>
                                         <li>內部備註 → 不外發</li>
                                     </ul>
-                                    {ticket.assigned_users && ticket.assigned_users.length > 0 && (
-                                        <div style={{ padding: '10px 14px', background: 'white', borderRadius: '8px', margin: '12px 0' }}>
-                                            <span style={{ fontWeight: 'bold', fontSize: '13px' }}>派工給：</span>
-                                            {ticket.assigned_users.map(u => u.name).join('、')}
-                                        </div>
-                                    )}
+
                                     <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
                                         <button onClick={() => setShowDispatch(false)} className="btn btn-secondary">取消</button>
                                         <button onClick={handleDispatch} disabled={saving}
@@ -461,7 +586,7 @@ export default function TicketDetail() {
 
                     {/* 師傅操作區 */}
                     <div className="detail-card">
-                        <h3>📝 狀態回報</h3>
+                        <h3>📝 工作操作</h3>
 
                         {/* 目前狀態提示 */}
                         <div style={{
@@ -472,21 +597,54 @@ export default function TicketDetail() {
                             目前狀態：<span style={{ fontWeight: 'bold', color: st.color }}>{st.label}</span>
                         </div>
 
-                        {/* 依狀態顯示對應按鈕 */}
                         <div style={{ display: 'grid', gap: '10px' }}>
 
-                            {(ticket.status === 'dispatched' || ticket.status === 'scheduled') && (
+                            {/* 已派工 → 接案 */}
+                            {ticket.status === 'dispatched' && (
+                                <button onClick={handleAccept} disabled={saving}
+                                    className="btn btn-primary"
+                                    style={{ padding: '16px', fontSize: '16px', background: '#06b6d4' }}>
+                                    {saving ? '⏳ ...' : '📥 確認接案'}
+                                </button>
+                            )}
+
+                            {/* 處理中 → 報價 + 完工 */}
+                            {ticket.status === 'in_progress' && (
                                 <>
-                                    {/* 完工照片上傳 */}
+                                    {/* 報價區 */}
+                                    <div style={{ padding: '14px 16px', background: '#f9fafb', borderRadius: '10px' }}>
+                                        <label style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px', display: 'block' }}>
+                                            💰 現場報價
+                                            {ticket.quoted_amount && (
+                                                <span style={{ fontSize: '12px', color: '#10b981', marginLeft: '8px' }}>
+                                                    (已報價 ${ticket.quoted_amount}
+                                                    {ticket.quote_confirmed_at ? ' ✅ 客戶已確認' : ' ⏳ 等待確認'})
+                                                </span>
+                                            )}
+                                        </label>
+                                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                            <span style={{ fontSize: '18px', fontWeight: 'bold' }}>$</span>
+                                            <input type="number" className="form-input" style={{ flex: 1 }}
+                                                placeholder="維修金額" value={quoteAmount}
+                                                onChange={e => setQuoteAmount(e.target.value)} />
+                                            <button onClick={handleSubmitQuote} disabled={saving || !quoteAmount}
+                                                className="btn btn-primary" style={{ fontSize: '13px', whiteSpace: 'nowrap' }}>
+                                                {saving ? '⏳' : '送出報價'}
+                                            </button>
+                                        </div>
+                                        <input type="text" className="form-input" style={{ marginTop: '8px' }}
+                                            placeholder="維修項目說明（選填）" value={quoteDesc}
+                                            onChange={e => setQuoteDesc(e.target.value)} />
+                                    </div>
+
+                                    {/* 完工照片 */}
                                     <div style={{ padding: '14px 16px', background: '#f9fafb', borderRadius: '10px' }}>
                                         <label style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px', display: 'block' }}>
                                             📷 完工照片 <span style={{ color: '#9ca3af', fontSize: '12px' }}>（選填，可多張）</span>
                                         </label>
-                                        <input
-                                            type="file" accept="image/*" multiple
+                                        <input type="file" accept="image/*" multiple
                                             onChange={e => setCompletionPhotos(Array.from(e.target.files).slice(0, 5))}
-                                            style={{ fontSize: '14px' }}
-                                        />
+                                            style={{ fontSize: '14px' }} />
                                         {completionPhotos.length > 0 && (
                                             <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
                                                 {completionPhotos.map((f, i) => (
@@ -498,15 +656,39 @@ export default function TicketDetail() {
                                         )}
                                     </div>
 
-                                    <button
-                                        onClick={handleCompletion}
-                                        disabled={saving}
+                                    {/* 完工說明 */}
+                                    <div style={{ padding: '14px 16px', background: '#f9fafb', borderRadius: '10px' }}>
+                                        <label style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px', display: 'block' }}>
+                                            📝 完工說明 <span style={{ color: '#9ca3af', fontSize: '12px' }}>（選填）</span>
+                                        </label>
+                                        <textarea rows="3" className="form-input"
+                                            placeholder="維修內容、使用材料、注意事項等"
+                                            value={completionNote} onChange={e => setCompletionNote(e.target.value)} />
+                                    </div>
+
+                                    {/* 實收金額 */}
+                                    <div style={{ padding: '14px 16px', background: '#f9fafb', borderRadius: '10px' }}>
+                                        <label style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px', display: 'block' }}>
+                                            💵 實收金額 <span style={{ color: '#9ca3af', fontSize: '12px' }}>（選填）</span>
+                                        </label>
+                                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                            <span style={{ fontSize: '18px', fontWeight: 'bold' }}>$</span>
+                                            <input type="number" className="form-input" style={{ flex: 1 }}
+                                                placeholder="實際收取金額" value={actualAmount}
+                                                onChange={e => setActualAmount(e.target.value)} />
+                                        </div>
+                                    </div>
+
+                                    {/* 完工回報按鈕 */}
+                                    <button onClick={handleCompletion} disabled={saving}
                                         className="btn btn-primary"
-                                        style={{ padding: '16px', fontSize: '16px', background: '#10b981' }}
-                                    >{saving ? '⏳ 回報中...' : '✅ 完工回報'}</button>
+                                        style={{ padding: '16px', fontSize: '16px', background: '#10b981' }}>
+                                        {saving ? '⏳ 回報中...' : '✅ 完工回報'}
+                                    </button>
                                 </>
                             )}
 
+                            {/* 已完工 */}
                             {ticket.status === 'done' && (
                                 <div style={{
                                     padding: '20px', textAlign: 'center', borderRadius: '10px',
@@ -518,6 +700,7 @@ export default function TicketDetail() {
                                 </div>
                             )}
 
+                            {/* 已結案 */}
                             {ticket.status === 'closed' && (
                                 <div style={{
                                     padding: '20px', textAlign: 'center', borderRadius: '10px',

@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(lsof:*)"
+      "Bash(lsof:*)",
+      "Bash(ls:*)"
     ]
   }
 }

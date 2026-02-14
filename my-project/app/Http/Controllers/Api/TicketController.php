@@ -428,6 +428,19 @@ class TicketController extends Controller
     }
 
     /**
+     * 合法狀態轉換表
+     */
+    private const STATUS_TRANSITIONS = [
+        'new' => ['need_more_info', 'scheduled', 'dispatched'],
+        'need_more_info' => ['new', 'scheduled', 'dispatched'],
+        'scheduled' => ['dispatched'],
+        'dispatched' => ['in_progress'],
+        'in_progress' => ['done'],
+        'done' => ['closed', 'in_progress'],
+        'closed' => [],
+    ];
+
+    /**
      * 更新工單狀態
      * PATCH /api/tickets/{id}/status
      */
@@ -438,32 +451,53 @@ class TicketController extends Controller
             return response()->json(['message' => '找不到此工單'], 404);
         }
 
+        $user = $request->user();
         $newStatus = $request->input('status');
+        $force = $request->boolean('force', false);
+
+        // 狀態流保護（管理員可用 force 跳過）
+        if (!$force || ($user && $user->role !== 'admin')) {
+            $allowed = self::STATUS_TRANSITIONS[$ticket->status] ?? [];
+            if (!in_array($newStatus, $allowed)) {
+                return response()->json([
+                    'message' => "不允許從「{$ticket->status}」變更為「{$newStatus}」",
+                    'allowed' => $allowed,
+                ], 422);
+            }
+        }
+
         $ticket->status = $newStatus;
+
         if ($newStatus === 'done' || $newStatus === 'completed') {
             $ticket->completed_at = now();
+            // 完工說明 + 實收金額
+            if ($request->has('completion_note')) {
+                $ticket->completion_note = $request->input('completion_note');
+            }
+            if ($request->has('actual_amount')) {
+                $ticket->actual_amount = $request->input('actual_amount');
+            }
         }
+
         $ticket->save();
 
         // LINE 推播通知
         try {
             $lineService = new LineNotifyService();
-            $user = $request->user();
 
             if ($newStatus === 'done') {
-                // 完工 → 通知管理員
+                // 完工 → 通知管理員（含金額資訊）
                 $adminLineIds = User::where('role', 'admin')
                     ->whereNotNull('line_user_id')
                     ->pluck('line_user_id')
                     ->toArray();
-                $lineService->notifyCompletion(
-                    $ticket->ticket_no,
-                    $user ? $user->name : '師傅',
-                    $adminLineIds
+                $workerName = $user ? $user->name : '師傅';
+                $amountInfo = $ticket->actual_amount ? "，實收 \${$ticket->actual_amount}" : '';
+                $noteInfo = $ticket->completion_note ? "\n說明：{$ticket->completion_note}" : '';
+                $lineService->pushToMultiple(
+                    $adminLineIds,
+                    "✅ {$ticket->ticket_no} 已完工\n師傅：{$workerName}{$amountInfo}{$noteInfo}"
                 );
-            } elseif ($newStatus === 'closed') {
-                // 結案 → 通知客戶（如有 LINE ID）
-                // 未來可擴充：透過客戶 LINE ID 通知
             }
         } catch (\Exception $e) {
             \Log::warning('LINE 狀態通知失敗: ' . $e->getMessage());
@@ -472,6 +506,165 @@ class TicketController extends Controller
         return response()->json([
             'message' => '狀態更新成功',
             'ticket' => $ticket,
+        ]);
+    }
+
+    /**
+     * 師傅接案
+     * POST /api/tickets/{id}/accept
+     */
+    public function acceptTicket(Request $request, $id)
+    {
+        $ticket = Ticket::with('assignedUsers')->find($id);
+        if (!$ticket) {
+            return response()->json(['message' => '找不到此工單'], 404);
+        }
+
+        $user = $request->user();
+
+        if ($ticket->status !== 'dispatched') {
+            return response()->json(['message' => '此工單目前無法接案'], 422);
+        }
+
+        // 更新狀態
+        $ticket->status = 'in_progress';
+        $ticket->accepted_at = now();
+        $ticket->save();
+
+        // 如果未指派，自動指派給接案師傅
+        if ($ticket->assignedUsers->isEmpty()) {
+            $ticket->assignedUsers()->attach($user->id);
+        }
+
+        // LINE 通知管理員
+        try {
+            $lineService = new LineNotifyService();
+            $adminLineIds = User::where('role', 'admin')
+                ->whereNotNull('line_user_id')
+                ->pluck('line_user_id')
+                ->toArray();
+            $lineService->pushToMultiple(
+                $adminLineIds,
+                "📥 {$ticket->ticket_no} 已接案\n師傅：{$user->name}"
+            );
+        } catch (\Exception $e) {
+            \Log::warning('LINE 接案通知失敗: ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'message' => '已接案',
+            'ticket' => $ticket,
+        ]);
+    }
+
+    /**
+     * 師傅提交報價
+     * POST /api/tickets/{id}/quote
+     */
+    public function submitQuote(Request $request, $id)
+    {
+        $request->validate([
+            'quoted_amount' => 'required|numeric|min:0',
+            'description' => 'nullable|string',
+        ]);
+
+        $ticket = Ticket::find($id);
+        if (!$ticket) {
+            return response()->json(['message' => '找不到此工單'], 404);
+        }
+
+        if (!in_array($ticket->status, ['in_progress', 'dispatched'])) {
+            return response()->json(['message' => '目前狀態不允許報價'], 422);
+        }
+
+        $user = $request->user();
+        $ticket->quoted_amount = $request->input('quoted_amount');
+        $ticket->quote_confirmed_at = null; // 重置確認狀態
+        if ($request->has('description') && $request->input('description')) {
+            $ticket->description_summary = $request->input('description');
+        }
+        $ticket->save();
+
+        // LINE 通知管理員
+        try {
+            $lineService = new LineNotifyService();
+            $adminLineIds = User::where('role', 'admin')
+                ->whereNotNull('line_user_id')
+                ->pluck('line_user_id')
+                ->toArray();
+            $lineService->pushToMultiple(
+                $adminLineIds,
+                "💰 {$ticket->ticket_no} 師傅報價\n金額：\${$ticket->quoted_amount}\n師傅：{$user->name}"
+            );
+        } catch (\Exception $e) {
+            \Log::warning('LINE 報價通知失敗: ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'message' => '報價已送出，等待客戶確認',
+            'ticket' => $ticket,
+        ]);
+    }
+
+    /**
+     * 客戶確認報價（公開 API）
+     * POST /api/tickets/track/{id}/confirm-quote
+     */
+    public function confirmQuote(Request $request, $id)
+    {
+        $request->validate([
+            'phone' => 'required',
+            'ticket_no' => 'required',
+        ]);
+
+        $ticket = Ticket::where('id', $id)
+            ->where('phone', $request->input('phone'))
+            ->where('ticket_no', $request->input('ticket_no'))
+            ->first();
+
+        if (!$ticket) {
+            return response()->json(['message' => '驗證失敗'], 404);
+        }
+
+        if (!$ticket->quoted_amount) {
+            return response()->json(['message' => '尚無報價可確認'], 422);
+        }
+
+        if ($ticket->quote_confirmed_at) {
+            return response()->json(['message' => '已確認過報價'], 422);
+        }
+
+        $ticket->quote_confirmed_at = now();
+        $ticket->save();
+
+        // LINE 通知管理員 + 師傅
+        try {
+            $lineService = new LineNotifyService();
+            // 通知管理員
+            $adminLineIds = User::where('role', 'admin')
+                ->whereNotNull('line_user_id')
+                ->pluck('line_user_id')
+                ->toArray();
+            // 通知指派的師傅
+            $workerLineIds = $ticket->assignedUsers()
+                ->whereNotNull('line_user_id')
+                ->pluck('line_user_id')
+                ->toArray();
+            $allIds = array_unique(array_merge($adminLineIds, $workerLineIds));
+            $lineService->pushToMultiple(
+                $allIds,
+                "✅ {$ticket->ticket_no} 客戶已確認報價 \${$ticket->quoted_amount}\n可開始施工"
+            );
+        } catch (\Exception $e) {
+            \Log::warning('LINE 確認報價通知失敗: ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'message' => '報價已確認',
+            'ticket' => [
+                'id' => $ticket->id,
+                'quote_confirmed_at' => $ticket->quote_confirmed_at,
+            ],
         ]);
     }
 
@@ -565,6 +758,9 @@ class TicketController extends Controller
                 'description' => $ticket->description_raw ? mb_substr($ticket->description_raw, 0, 80) : '',
                 'preferred_time_slot' => $ticket->preferred_time_slot,
                 'is_urgent' => $ticket->is_urgent,
+                'quoted_amount' => $ticket->quoted_amount,
+                'actual_amount' => $ticket->actual_amount,
+                'quote_confirmed_at' => $ticket->quote_confirmed_at,
                 'created_at' => $ticket->created_at,
                 'completed_at' => $ticket->completed_at,
                 'updated_at' => $ticket->updated_at,

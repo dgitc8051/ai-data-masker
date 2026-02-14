@@ -15,7 +15,7 @@ import RepairTrack from './RepairTrack.jsx'
 import TrackDetail from './TrackDetail.jsx'
 import ContactPage from './ContactPage.jsx'
 import ServicesPage from './ServicesPage.jsx'
-import AboutPage from './AboutPage.jsx'
+import PricingPage from './PricingPage.jsx'
 
 // 未登入 → 跳轉登入頁
 function RequireAuth({ children }) {
@@ -44,7 +44,7 @@ function AppRoutes() {
       <Route path="/track/:id" element={<TrackDetail />} />
       <Route path="/contact" element={<ContactPage />} />
       <Route path="/services" element={<ServicesPage />} />
-      <Route path="/about" element={<AboutPage />} />
+      <Route path="/pricing" element={<PricingPage />} />
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
 
       {/* 需要登入 */}

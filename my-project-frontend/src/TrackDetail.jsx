@@ -22,6 +22,8 @@ export default function TrackDetail() {
     const [ticket, setTicket] = useState(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
+    const [confirming, setConfirming] = useState(false)
+    const [confirmed, setConfirmed] = useState(false)
 
     useEffect(() => {
         if (!phone || !ticketNo) {
@@ -41,6 +43,7 @@ export default function TrackDetail() {
             const data = await res.json()
             if (res.ok) {
                 setTicket(data.ticket)
+                if (data.ticket.quote_confirmed_at) setConfirmed(true)
             } else {
                 setError(data.message || '查詢失敗')
             }
@@ -48,6 +51,32 @@ export default function TrackDetail() {
             setError('網路連線錯誤')
         } finally {
             setLoading(false)
+        }
+    }
+
+    const handleConfirmQuote = async () => {
+        if (!confirm(`確定同意此報價 $${ticket.quoted_amount} 嗎？`)) return
+        setConfirming(true)
+        try {
+            const res = await fetch(
+                `${import.meta.env.VITE_API_URL}/api/tickets/track/${id}/confirm-quote`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone, ticket_no: ticketNo }),
+                }
+            )
+            const data = await res.json()
+            if (res.ok) {
+                setConfirmed(true)
+                fetchDetail()
+            } else {
+                alert(data.message || '確認失敗')
+            }
+        } catch {
+            alert('網路連線錯誤')
+        } finally {
+            setConfirming(false)
         }
     }
 
@@ -162,6 +191,82 @@ export default function TrackDetail() {
                         ))}
                     </div>
                 </div>
+
+                {/* ===== 報價確認區 ===== */}
+                {ticket.quoted_amount && (
+                    <div style={{
+                        background: confirmed
+                            ? 'rgba(16,185,129,0.1)'
+                            : 'rgba(245,158,11,0.1)',
+                        borderRadius: '14px',
+                        padding: '20px',
+                        border: `1px solid ${confirmed ? 'rgba(16,185,129,0.3)' : 'rgba(245,158,11,0.3)'}`,
+                        marginBottom: '16px',
+                    }}>
+                        <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginBottom: '10px' }}>
+                            💰 師傅報價
+                        </div>
+                        <div style={{
+                            fontSize: '32px', fontWeight: '800', color: '#fff',
+                            textAlign: 'center', marginBottom: '8px',
+                        }}>
+                            ${Number(ticket.quoted_amount).toLocaleString()}
+                        </div>
+
+                        {confirmed || ticket.quote_confirmed_at ? (
+                            <div style={{
+                                padding: '12px', borderRadius: '10px', textAlign: 'center',
+                                background: 'rgba(16,185,129,0.15)',
+                            }}>
+                                <span style={{ color: '#34d399', fontSize: '14px', fontWeight: '600' }}>
+                                    ✅ 已確認報價
+                                </span>
+                                {ticket.quote_confirmed_at && (
+                                    <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: '11px', marginTop: '4px' }}>
+                                        {new Date(ticket.quote_confirmed_at).toLocaleString('zh-TW')}
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <>
+                                <p style={{
+                                    color: 'rgba(255,255,255,0.5)', fontSize: '12px',
+                                    textAlign: 'center', margin: '0 0 12px', lineHeight: '1.6',
+                                }}>
+                                    師傅已完成現場檢測並報價<br />
+                                    請確認是否同意此報價，確認後師傅將開始施工
+                                </p>
+                                <button
+                                    onClick={handleConfirmQuote}
+                                    disabled={confirming}
+                                    style={{
+                                        width: '100%', padding: '14px', borderRadius: '12px',
+                                        border: 'none', cursor: confirming ? 'not-allowed' : 'pointer',
+                                        background: 'linear-gradient(135deg, #10b981, #059669)',
+                                        color: '#fff', fontSize: '16px', fontWeight: '700',
+                                        opacity: confirming ? 0.6 : 1,
+                                    }}>
+                                    {confirming ? '⏳ 處理中...' : '✅ 同意此報價'}
+                                </button>
+                            </>
+                        )}
+                    </div>
+                )}
+
+                {/* 實收金額（完工後顯示） */}
+                {ticket.actual_amount && (
+                    <div style={{
+                        background: 'rgba(255,255,255,0.06)', borderRadius: '14px',
+                        padding: '16px 20px', border: '1px solid rgba(255,255,255,0.08)',
+                        marginBottom: '16px',
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    }}>
+                        <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '13px' }}>💵 實收金額</span>
+                        <span style={{ color: '#fff', fontSize: '18px', fontWeight: '700' }}>
+                            ${Number(ticket.actual_amount).toLocaleString()}
+                        </span>
+                    </div>
+                )}
 
                 {/* Detail Info */}
                 <div style={{

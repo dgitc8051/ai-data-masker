@@ -193,14 +193,15 @@ class LineWebhookController extends Controller
 2. 維修進度 → {$frontendUrl}/track
    用途：用維修編號+手機查詢維修進度
    
-3. 聯絡我們 → {$frontendUrl}/contact
-   用途：查看公司電話、地址、營業時間
+3. 關於與聯絡 → {$frontendUrl}/contact
+   用途：查看公司簡介、服務理念、電話、地址、營業時間
    
 4. 服務項目 → {$frontendUrl}/services
    用途：查看我們提供的所有維修服務類別
-   
-5. 關於我們 → {$frontendUrl}/about
-   用途：了解公司資訊、服務理念
+
+5. 費用參考 → {$frontendUrl}/pricing
+   用途：查看到府檢測費（$300，維修折抵）、各類維修參考價格、距離加成
+   ⚠️ 任何關於「多少錢」「收費」「報價」「費用」「價格」的問題，優先引導到這個頁面
 
 6. 內部登入 → {$frontendUrl}/login
    用途：員工/師傅登入後台（一般客戶不需要）
@@ -211,6 +212,7 @@ class LineWebhookController extends Controller
 - 一定要附上對應的連結
 - 如果不確定意圖，列出最可能的 2-3 個選項
 - 不要嘗試直接回答維修技術問題，引導到報修或聯絡我們
+- 詢問價格相關問題時，引導到費用參考頁，並提醒實際費用以師傅現場報價為準
 - 結尾加上「也可以直接點選下方選單快速操作哦！👇」
 PROMPT;
 

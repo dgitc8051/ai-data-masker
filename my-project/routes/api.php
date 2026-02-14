@@ -16,6 +16,7 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/repair-tickets', [TicketController::class, 'store']); // 公開報修建票
 Route::get('/tickets/track', [TicketController::class, 'trackByPhone']); // 公開追蹤
 Route::get('/tickets/track/{id}', [TicketController::class, 'trackDetail']); // 公開詳情（遮罩版）
+Route::post('/tickets/track/{id}/confirm-quote', [TicketController::class, 'confirmQuote']); // 客戶確認報價
 Route::post('/line/webhook', [LineWebhookController::class, 'webhook']); // LINE Webhook
 
 // === 需要登入的路由 ===
@@ -61,6 +62,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/tickets/{id}/status', [TicketController::class, 'updateStatus']);
     Route::post('/tickets/{id}/comments', [TicketController::class, 'addComment']);
     Route::post('/tickets/{id}/dispatch', [TicketController::class, 'dispatch']);
+    Route::post('/tickets/{id}/accept', [TicketController::class, 'acceptTicket']);
+    Route::post('/tickets/{id}/quote', [TicketController::class, 'submitQuote']);
     Route::post('/tickets/{id}/attachments', [TicketController::class, 'uploadAttachment']);
 
     // LINE 綁定
