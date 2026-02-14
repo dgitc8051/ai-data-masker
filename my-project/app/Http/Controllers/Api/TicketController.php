@@ -197,6 +197,33 @@ class TicketController extends Controller
 
         $ticket->load('assignedUsers:id,name');
 
+        // LINE 推播通知管理員（僅公開報修時）
+        if ($isRepairMode && !$user) {
+            try {
+                $lineService = new LineNotifyService();
+                $adminLineIds = User::where('role', 'admin')
+                    ->whereNotNull('line_user_id')
+                    ->pluck('line_user_id')
+                    ->toArray();
+
+                if (!empty($adminLineIds)) {
+                    $msg = "📨 新報修單\n\n"
+                        . "編號：{$ticket->ticket_no}\n"
+                        . "類別：{$ticket->category}\n"
+                        . "電話：{$ticket->phone}\n"
+                        . "地址：{$ticket->address}\n"
+                        . "說明：" . mb_substr($ticket->description_raw ?? '', 0, 50) . "\n\n"
+                        . "請至後台處理。";
+
+                    foreach ($adminLineIds as $lineUserId) {
+                        $lineService->pushMessage($lineUserId, $msg);
+                    }
+                }
+            } catch (\Exception $e) {
+                \Log::warning('LINE 新報修通知失敗: ' . $e->getMessage());
+            }
+        }
+
         return response()->json([
             'message' => '工單建立成功',
             'ticket' => $ticket,

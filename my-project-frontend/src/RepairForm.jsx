@@ -30,6 +30,7 @@ export default function RepairForm() {
     const [step, setStep] = useState(1)
     const [submitting, setSubmitting] = useState(false)
     const [workers, setWorkers] = useState([])
+    const [successInfo, setSuccessInfo] = useState(null) // { ticketNo, phone }
 
     // Step 1: 故障資訊
     const [category, setCategory] = useState('')
@@ -109,23 +110,16 @@ export default function RepairForm() {
             const data = await res.json()
 
             if (!res.ok) throw new Error(data.message || '建立失敗')
-            alert(`✅ 報修單 ${data.ticket.ticket_no} 已建立！我們會盡快與您聯繫。`)
+
             if (isLoggedIn) {
+                alert(`✅ 報修單 ${data.ticket.ticket_no} 已建立！`)
                 navigate('/')
             } else {
-                // 公開用戶：重置表單
-                setStep(1)
-                setCategory('')
-                setDescription('')
-                setPhotos([])
-                setPreviews([])
-                setCustomerName('')
-                setPhone('')
-                setCity('')
-                setDistrict('')
-                setAddressDetail('')
-                setPreferredTimeSlot('')
-                setNotes('')
+                // 公開用戶：顯示成功畫面
+                setSuccessInfo({
+                    ticketNo: data.ticket.ticket_no,
+                    phone: phone,
+                })
             }
         } catch (err) {
             alert(`❌ ${err.message}`)
@@ -134,6 +128,91 @@ export default function RepairForm() {
     }
 
     const steps = ['故障資訊', '聯絡方式', '確認送出']
+
+    // 成功畫面
+    if (successInfo) {
+        return (
+            <div style={{
+                minHeight: '100vh',
+                background: 'linear-gradient(135deg, #1e3a5f 0%, #0f2439 100%)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: '20px',
+            }}>
+                <div style={{
+                    maxWidth: '420px', width: '100%', textAlign: 'center',
+                }}>
+                    <div style={{
+                        width: '80px', height: '80px', borderRadius: '50%',
+                        background: 'rgba(16,185,129,0.2)', margin: '0 auto 20px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '40px',
+                    }}>✅</div>
+
+                    <h1 style={{ color: '#fff', fontSize: '24px', margin: '0 0 8px', fontWeight: '700' }}>
+                        報修單已送出！
+                    </h1>
+                    <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '14px', margin: '0 0 28px' }}>
+                        我們會盡快與您聯繫安排維修
+                    </p>
+
+                    {/* 報修資訊卡 */}
+                    <div style={{
+                        background: 'rgba(255,255,255,0.08)', borderRadius: '16px',
+                        padding: '24px', border: '1px solid rgba(255,255,255,0.1)',
+                        marginBottom: '16px', textAlign: 'left',
+                    }}>
+                        <div style={{ marginBottom: '16px' }}>
+                            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px', marginBottom: '4px' }}>
+                                報修編號
+                            </div>
+                            <div style={{
+                                color: '#60a5fa', fontSize: '22px', fontWeight: '800',
+                                fontFamily: 'monospace', letterSpacing: '1px',
+                            }}>
+                                {successInfo.ticketNo}
+                            </div>
+                        </div>
+                        <div>
+                            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px', marginBottom: '4px' }}>
+                                聯絡電話
+                            </div>
+                            <div style={{ color: '#fff', fontSize: '16px', fontWeight: '600' }}>
+                                {successInfo.phone}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 提示 */}
+                    <div style={{
+                        background: 'rgba(59,130,246,0.15)', borderRadius: '12px',
+                        padding: '14px 18px', border: '1px solid rgba(59,130,246,0.2)',
+                        marginBottom: '24px', textAlign: 'left',
+                    }}>
+                        <p style={{ color: '#93c5fd', fontSize: '13px', margin: 0, lineHeight: '1.6' }}>
+                            💡 請記住以上編號與手機號碼，可隨時查詢維修進度
+                        </p>
+                    </div>
+
+                    {/* Buttons */}
+                    <Link to="/track" style={{
+                        display: 'block', padding: '14px', borderRadius: '12px',
+                        background: '#3b82f6', color: '#fff', fontSize: '15px',
+                        fontWeight: '600', textDecoration: 'none', marginBottom: '10px',
+                    }}>
+                        📋 查詢維修進度
+                    </Link>
+                    <Link to="/home" style={{
+                        display: 'block', padding: '14px', borderRadius: '12px',
+                        background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.6)',
+                        fontSize: '14px', textDecoration: 'none',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                    }}>
+                        ← 返回首頁
+                    </Link>
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div className="container">
