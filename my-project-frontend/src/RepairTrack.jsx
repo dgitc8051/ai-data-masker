@@ -34,14 +34,15 @@ export default function RepairTrack() {
     useEffect(() => {
         const liffId = import.meta.env.VITE_LIFF_ID
         if (!liffId) {
-            setLiffError('系統設定錯誤')
+            // 沒有 LIFF ID → 直接顯示手動查詢
             setLiffReady(true)
             return
         }
         liff.init({ liffId })
             .then(async () => {
                 if (!liff.isLoggedIn()) {
-                    liff.login({ redirectUri: window.location.href })
+                    // 非 LINE 環境 → 不強制登入，直接顯示手動查詢
+                    setLiffReady(true)
                     return
                 }
                 try {
@@ -49,13 +50,11 @@ export default function RepairTrack() {
                     setLineUserId(profile.userId)
                 } catch (err) {
                     console.warn('LIFF getProfile 失敗:', err)
-                    setLiffError('LINE 登入失敗')
                 }
                 setLiffReady(true)
             })
             .catch(err => {
                 console.warn('LIFF 初始化失敗:', err)
-                setLiffError('LINE 連線失敗')
                 setLiffReady(true)
             })
     }, [])
