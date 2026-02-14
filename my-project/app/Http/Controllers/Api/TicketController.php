@@ -235,6 +235,25 @@ class TicketController extends Controller
             } catch (\Exception $e) {
                 \Log::warning('LINE 新報修通知失敗: ' . $e->getMessage());
             }
+
+            // 同時通知客戶：報修已收到
+            if ($ticket->customer_line_id) {
+                try {
+                    $lineService = $lineService ?? new LineNotifyService();
+                    $frontendUrl = env('FRONTEND_URL', 'https://ai-data-masker-production-fda9.up.railway.app');
+                    $lineService->pushMessage(
+                        $ticket->customer_line_id,
+                        "✅ 您的報修已成功送出！\n\n"
+                        . "📋 編號：{$ticket->ticket_no}\n"
+                        . "📌 類別：{$ticket->category}\n"
+                        . "📍 地址：{$ticket->address}\n\n"
+                        . "我們將儘速為您處理，狀態有更新時會再通知您。\n\n"
+                        . "📋 查詢進度：\n{$frontendUrl}/track"
+                    );
+                } catch (\Exception $e) {
+                    \Log::warning('LINE 客戶報修確認通知失敗: ' . $e->getMessage());
+                }
+            }
         }
 
         return response()->json([
@@ -523,6 +542,36 @@ class TicketController extends Controller
                     $adminLineIds,
                     "✅ {$ticket->ticket_no} 已完工\n師傅：{$workerName}{$amountInfo}{$noteInfo}"
                 );
+                // 完工 → 也通知客戶
+                if ($ticket->customer_line_id) {
+                    $lineService->pushMessage(
+                        $ticket->customer_line_id,
+                        "🎉 您的維修單 {$ticket->ticket_no} 已完工！\n\n"
+                        . "師傅：{$workerName}\n"
+                        . ($ticket->completion_note ? "說明：{$ticket->completion_note}\n\n" : "\n")
+                        . "感謝您的耐心等候，如有問題請隨時聯繫我們。"
+                    );
+                }
+            }
+
+            // 已派工 → 通知客戶
+            if ($newStatus === 'dispatched' && $ticket->customer_line_id) {
+                $workerNames = $ticket->assignedUsers->pluck('name')->join('、') ?: '維修師傅';
+                $lineService->pushMessage(
+                    $ticket->customer_line_id,
+                    "👷 您的維修單 {$ticket->ticket_no} 已派工！\n\n"
+                    . "負責師傅：{$workerNames}\n"
+                    . "我們會盡快與您聯繫安排時間。"
+                );
+            }
+
+            // 處理中 → 通知客戶
+            if ($newStatus === 'in_progress' && $ticket->customer_line_id) {
+                $lineService->pushMessage(
+                    $ticket->customer_line_id,
+                    "🔧 您的維修單 {$ticket->ticket_no} 師傅已開始處理！\n\n"
+                    . "維修進行中，完工後將通知您。"
+                );
             }
 
             // 待補件 → 通知客戶
@@ -671,18 +720,9 @@ class TicketController extends Controller
      */
     public function confirmQuote(Request $request, $id)
     {
-        $request->validate([
-            'phone' => 'required',
-            'ticket_no' => 'required',
-        ]);
-
-        $ticket = Ticket::where('id', $id)
-            ->where('phone', $request->input('phone'))
-            ->where('ticket_no', $request->input('ticket_no'))
-            ->first();
-
+        $ticket = $this->findTrackTicket($request, $id);
         if (!$ticket) {
-            return response()->json(['message' => '驗證失敗'], 404);
+            return response()->json(['message' => '找不到此工單，或驗證資訊不符'], 404);
         }
 
         if (!$ticket->quoted_amount) {
@@ -790,14 +830,22 @@ class TicketController extends Controller
      */
     public function trackDetail(Request $request, $id)
     {
+        $lineUserId = $request->input('line_user_id', '');
         $phone = $request->input('phone', '');
         $ticketNo = $request->input('ticket_no', '');
 
-        // 雙重驗證：手機 + 編號都要符合
-        $ticket = Ticket::where('id', $id)
-            ->where('phone', $phone)
-            ->where('ticket_no', $ticketNo)
-            ->first();
+        // 驗證方式 1: LINE User ID（更安全）
+        // 驗證方式 2: 手機 + 編號（傳統方式）
+        if ($lineUserId) {
+            $ticket = Ticket::where('id', $id)
+                ->where('customer_line_id', $lineUserId)
+                ->first();
+        } else {
+            $ticket = Ticket::where('id', $id)
+                ->where('phone', $phone)
+                ->where('ticket_no', $ticketNo)
+                ->first();
+        }
 
         if (!$ticket) {
             return response()->json(['message' => '找不到此工單，或驗證資訊不符'], 404);
@@ -850,19 +898,38 @@ class TicketController extends Controller
     }
 
     /**
+     * 公開：用 LINE User ID 查詢所有工單
+     * GET /api/tickets/track-by-line?line_user_id=Uxxx
+     */
+    public function trackByLineId(Request $request)
+    {
+        $lineUserId = $request->input('line_user_id', '');
+        if (empty($lineUserId)) {
+            return response()->json(['message' => 'LINE ID 未提供'], 422);
+        }
+
+        $tickets = Ticket::where('customer_line_id', $lineUserId)
+            ->latest()
+            ->limit(50)
+            ->get(['id', 'ticket_no', 'category', 'title', 'status', 'created_at', 'completed_at', 'description_raw']);
+
+        $tickets->each(function ($t) {
+            $t->makeHidden(['description_raw']);
+            $t->description = $t->description_raw ? mb_substr($t->description_raw, 0, 50) : '';
+        });
+
+        return response()->json([
+            'tickets' => $tickets,
+        ]);
+    }
+
+    /**
      * 公開：客戶補件
      * PATCH /api/tickets/track/{id}/supplement
      */
     public function supplementTicket(Request $request, $id)
     {
-        $phone = $request->input('phone', '');
-        $ticketNo = $request->input('ticket_no', '');
-
-        $ticket = Ticket::where('id', $id)
-            ->where('phone', $phone)
-            ->where('ticket_no', $ticketNo)
-            ->first();
-
+        $ticket = $this->findTrackTicket($request, $id);
         if (!$ticket) {
             return response()->json(['message' => '找不到此工單，或驗證資訊不符'], 404);
         }
@@ -984,14 +1051,7 @@ class TicketController extends Controller
      */
     public function confirmTimeSlot(Request $request, $id)
     {
-        $phone = $request->input('phone', '');
-        $ticketNo = $request->input('ticket_no', '');
-
-        $ticket = Ticket::where('id', $id)
-            ->where('phone', $phone)
-            ->where('ticket_no', $ticketNo)
-            ->first();
-
+        $ticket = $this->findTrackTicket($request, $id);
         if (!$ticket) {
             return response()->json(['message' => '找不到此工單，或驗證資訊不符'], 404);
         }
@@ -1113,14 +1173,7 @@ class TicketController extends Controller
      */
     public function customerCancelTicket(Request $request, $id)
     {
-        $phone = $request->input('phone', '');
-        $ticketNo = $request->input('ticket_no', '');
-
-        $ticket = Ticket::where('id', $id)
-            ->where('phone', $phone)
-            ->where('ticket_no', $ticketNo)
-            ->first();
-
+        $ticket = $this->findTrackTicket($request, $id);
         if (!$ticket) {
             return response()->json(['message' => '找不到此工單，或驗證資訊不符'], 404);
         }
@@ -1273,5 +1326,20 @@ class TicketController extends Controller
         if ($len <= 2)
             return '***';
         return mb_substr($value, 0, 1) . str_repeat('*', $len - 2) . mb_substr($value, -1);
+    }
+
+    /** 客戶追蹤通用查詢：支援 LINE ID 或手機+編號 */
+    private function findTrackTicket(Request $request, $id)
+    {
+        $lineUserId = $request->input('line_user_id', '');
+        if ($lineUserId) {
+            return Ticket::where('id', $id)
+                ->where('customer_line_id', $lineUserId)
+                ->first();
+        }
+        return Ticket::where('id', $id)
+            ->where('phone', $request->input('phone', ''))
+            ->where('ticket_no', $request->input('ticket_no', ''))
+            ->first();
     }
 }

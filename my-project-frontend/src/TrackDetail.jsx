@@ -21,7 +21,7 @@ const statusSteps = ['new', 'dispatched', 'in_progress', 'done', 'closed']
 export default function TrackDetail() {
     const { id } = useParams()
     const location = useLocation()
-    const { phone, ticketNo } = location.state || {}
+    const { phone, ticketNo, line_user_id } = location.state || {}
 
     const [ticket, setTicket] = useState(null)
     const [loading, setLoading] = useState(true)
@@ -41,7 +41,7 @@ export default function TrackDetail() {
     const [cancelling, setCancelling] = useState(false)
 
     useEffect(() => {
-        if (!phone || !ticketNo) {
+        if (!line_user_id && (!phone || !ticketNo)) {
             setError('缺少驗證資訊，請重新查詢')
             setLoading(false)
             return
@@ -51,7 +51,9 @@ export default function TrackDetail() {
 
     const fetchDetail = async () => {
         try {
-            const params = new URLSearchParams({ phone, ticket_no: ticketNo })
+            const params = line_user_id
+                ? new URLSearchParams({ line_user_id })
+                : new URLSearchParams({ phone, ticket_no: ticketNo })
             const res = await fetch(
                 `${import.meta.env.VITE_API_URL}/api/tickets/track/${id}?${params}`
             )
@@ -89,7 +91,7 @@ export default function TrackDetail() {
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ phone, ticket_no: ticketNo }),
+                    body: JSON.stringify({ line_user_id, phone, ticket_no: ticketNo }),
                 }
             )
             const data = await res.json()
@@ -115,7 +117,7 @@ export default function TrackDetail() {
                 {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ phone, ticket_no: ticketNo, ...editForm }),
+                    body: JSON.stringify({ line_user_id, phone, ticket_no: ticketNo, ...editForm }),
                 }
             )
             const data = await res.json()
@@ -406,7 +408,7 @@ export default function TrackDetail() {
                                         {
                                             method: 'POST',
                                             headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({ phone, ticket_no: ticketNo, selected_slot: selectedSlot }),
+                                            body: JSON.stringify({ line_user_id, phone, ticket_no: ticketNo, selected_slot: selectedSlot }),
                                         }
                                     )
                                     const data = await res.json()
@@ -671,7 +673,7 @@ export default function TrackDetail() {
                                                 {
                                                     method: 'POST',
                                                     headers: { 'Content-Type': 'application/json' },
-                                                    body: JSON.stringify({ phone, ticket_no: ticketNo, cancel_reason: cancelReason }),
+                                                    body: JSON.stringify({ line_user_id, phone, ticket_no: ticketNo, cancel_reason: cancelReason }),
                                                 }
                                             )
                                             const data = await res.json()
