@@ -12,20 +12,19 @@ WHITE = (255, 255, 255)
 DIM = (255, 255, 255, 180)
 
 cells = [
-    "用戶報修",   # 扳手
-    "維修進度",   # 清單
-    "聯絡我們",   # 電話
-    "內部登入",   # 人像
-    "服務項目",   # 齒輪
-    "費用參考",   # 錢幣
+    "我要報修",   # 扳手
+    "查詢進度",   # 清單
+    "聯絡客服",   # 電話
+    "管理後台",   # 人像
+    "服務介紹",   # 齒輪
+    "收費標準",   # 錢幣
 ]
 
 # 字體
-font = None
 for fp in ["/System/Library/Fonts/PingFang.ttc", "/System/Library/Fonts/STHeiti Medium.ttc"]:
     if os.path.exists(fp):
         try:
-            font = ImageFont.truetype(fp, 56)
+            font = ImageFont.truetype(fp, 64)
             break
         except:
             continue
@@ -104,14 +103,14 @@ for idx, label in enumerate(cells):
     img = Image.alpha_composite(img, overlay)
     draw = ImageDraw.Draw(img)
 
-    # icon (在上方)
-    iy = cy - 50
-    icon_funcs[idx](draw, cx, iy, 38)
+    # icon (在上方，加大)
+    iy = cy - 60
+    icon_funcs[idx](draw, cx, iy, 60)
 
     # 文字 (在下方)
     bbox = draw.textbbox((0, 0), label, font=font)
     tw = bbox[2] - bbox[0]
-    draw.text((cx - tw // 2, cy + 30), label, fill=WHITE, font=font)
+    draw.text((cx - tw // 2, cy + 45), label, fill=WHITE, font=font)
 
 out = img.convert('RGB')
 path = os.path.join(os.path.dirname(__file__), '..', 'storage', 'rich_menu.png')

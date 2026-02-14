@@ -48,32 +48,32 @@ $richMenu = [
         // 左上 - 用戶報修
         [
             'bounds' => ['x' => 0, 'y' => 0, 'width' => 833, 'height' => 843],
-            'action' => ['type' => 'uri', 'label' => '用戶報修', 'uri' => "$FRONTEND_URL/repair"],
+            'action' => ['type' => 'uri', 'label' => '我要報修', 'uri' => "$FRONTEND_URL/repair"],
         ],
         // 中上 - 維修進度
         [
             'bounds' => ['x' => 833, 'y' => 0, 'width' => 834, 'height' => 843],
-            'action' => ['type' => 'uri', 'label' => '維修進度', 'uri' => "$FRONTEND_URL/track"],
+            'action' => ['type' => 'uri', 'label' => '查詢進度', 'uri' => 'https://liff.line.me/2009132924-WkTGGJGC'],
         ],
         // 右上 - 聯絡我們
         [
             'bounds' => ['x' => 1667, 'y' => 0, 'width' => 833, 'height' => 843],
-            'action' => ['type' => 'uri', 'label' => '聯絡我們', 'uri' => "$FRONTEND_URL/contact"],
+            'action' => ['type' => 'uri', 'label' => '聯絡客服', 'uri' => "$FRONTEND_URL/contact"],
         ],
         // 左下 - 內部登入
         [
             'bounds' => ['x' => 0, 'y' => 843, 'width' => 833, 'height' => 843],
-            'action' => ['type' => 'uri', 'label' => '內部登入', 'uri' => "$FRONTEND_URL/login"],
+            'action' => ['type' => 'uri', 'label' => '管理後台', 'uri' => "$FRONTEND_URL/login"],
         ],
         // 中下 - 服務項目
         [
             'bounds' => ['x' => 833, 'y' => 843, 'width' => 834, 'height' => 843],
-            'action' => ['type' => 'uri', 'label' => '服務項目', 'uri' => "$FRONTEND_URL/services"],
+            'action' => ['type' => 'uri', 'label' => '服務介紹', 'uri' => "$FRONTEND_URL/services"],
         ],
         // 右下 - 費用參考
         [
             'bounds' => ['x' => 1667, 'y' => 843, 'width' => 833, 'height' => 843],
-            'action' => ['type' => 'uri', 'label' => '費用參考', 'uri' => "$FRONTEND_URL/pricing"],
+            'action' => ['type' => 'uri', 'label' => '收費標準', 'uri' => "$FRONTEND_URL/pricing"],
         ],
     ],
 ];

@@ -880,6 +880,18 @@ class TicketController extends Controller
             'updated_at' => $ticket->updated_at,
         ];
 
+        // 附件照片（含完整 URL）
+        $ticket->load('attachments');
+        $ticketData['attachments'] = $ticket->attachments->map(function ($att) {
+            return [
+                'id' => $att->id,
+                'file_path' => $att->file_path,
+                'file_url' => url('storage/' . $att->file_path),
+                'file_type' => $att->file_type,
+                'original_name' => $att->original_name,
+            ];
+        })->toArray();
+
         // 待補件時回傳完整可編輯資料（不遮罩）
         if ($ticket->status === 'need_more_info') {
             $ticketData['editable'] = true;
@@ -943,6 +955,32 @@ class TicketController extends Controller
         foreach ($updatable as $field) {
             if ($request->has($field)) {
                 $ticket->{$field} = $request->input($field);
+            }
+        }
+
+        // 處理刪除舊照片
+        if ($request->has('delete_attachment_ids')) {
+            $deleteIds = $request->input('delete_attachment_ids');
+            if (is_string($deleteIds)) {
+                $deleteIds = json_decode($deleteIds, true) ?? [];
+            }
+            if (!empty($deleteIds)) {
+                $ticket->attachments()->whereIn('id', $deleteIds)->each(function ($att) {
+                    \Storage::disk('public')->delete($att->file_path);
+                    $att->delete();
+                });
+            }
+        }
+
+        // 處理新圖片上傳
+        if ($request->hasFile('attachments')) {
+            foreach ($request->file('attachments') as $file) {
+                $path = $file->store('ticket-attachments', 'public');
+                $ticket->attachments()->create([
+                    'file_path' => $path,
+                    'file_type' => 'photo',
+                    'original_name' => $file->getClientOriginalName(),
+                ]);
             }
         }
 

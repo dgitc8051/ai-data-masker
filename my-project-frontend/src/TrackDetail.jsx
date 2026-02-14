@@ -32,6 +32,9 @@ export default function TrackDetail() {
     const [editForm, setEditForm] = useState({})
     const [submitting, setSubmitting] = useState(false)
     const [submitted, setSubmitted] = useState(false)
+    // 照片管理
+    const [newPhotos, setNewPhotos] = useState([])
+    const [deletePhotoIds, setDeletePhotoIds] = useState([])
     // 時段選擇
     const [selectedSlot, setSelectedSlot] = useState('')
     const [timeConfirmed, setTimeConfirmed] = useState(false)
@@ -108,21 +111,33 @@ export default function TrackDetail() {
         }
     }
 
-    // 補件提交
+    // 補件提交（FormData — 支援檔案上傳）
     const handleSupplement = async () => {
         setSubmitting(true)
         try {
+            const formData = new FormData()
+            if (line_user_id) formData.append('line_user_id', line_user_id)
+            if (phone) formData.append('phone', phone)
+            if (ticketNo) formData.append('ticket_no', ticketNo)
+            Object.entries(editForm).forEach(([key, val]) => {
+                formData.append(key, typeof val === 'boolean' ? (val ? '1' : '0') : val)
+            })
+            // 要刪除的舊照片
+            if (deletePhotoIds.length > 0) {
+                formData.append('delete_attachment_ids', JSON.stringify(deletePhotoIds))
+            }
+            // 新上傳的照片
+            newPhotos.forEach(f => formData.append('attachments[]', f))
+
             const res = await fetch(
                 `${import.meta.env.VITE_API_URL}/api/tickets/track/${id}/supplement`,
-                {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ line_user_id, phone, ticket_no: ticketNo, ...editForm }),
-                }
+                { method: 'POST', body: formData }
             )
             const data = await res.json()
             if (res.ok) {
                 setSubmitted(true)
+                setNewPhotos([])
+                setDeletePhotoIds([])
                 fetchDetail()
             } else {
                 alert(data.message || '補件失敗')
@@ -282,9 +297,9 @@ export default function TrackDetail() {
                         <div style={{ display: 'grid', gap: '12px' }}>
                             {[
                                 { key: 'customer_name', label: '姓名', type: 'text' },
-                                { key: 'category', label: '報修類別', type: 'select', options: ['水管', '電路', '冒氣', '熱水器', '其他'] },
+                                { key: 'category', label: '報修類別', type: 'select', options: ['水管', '電路', '冷氣', '熱水器', '其他'] },
                                 { key: 'address', label: '服務地址', type: 'text' },
-                                { key: 'preferred_time_slot', label: '偏好時段', type: 'select', options: ['上午 (9-12)', '下午 (13-17)', '晚上 (18-21)', '皆可'] },
+                                { key: 'preferred_time_slot', label: '偏好時段', type: 'select', options: ['上午（09:00-12:00）', '下午（13:00-17:00）', '晚上（18:00-21:00）', '週末皆可', '盡快處理'] },
                             ].map(field => (
                                 <div key={field.key}>
                                     <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', display: 'block', marginBottom: '4px' }}>
@@ -330,6 +345,105 @@ export default function TrackDetail() {
                                 />
                                 🔴 緊急件
                             </label>
+
+                            {/* ===== 照片管理 ===== */}
+                            <div>
+                                <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', display: 'block', marginBottom: '8px' }}>
+                                    📷 報修照片
+                                </label>
+                                {/* 現有照片 */}
+                                {ticket.attachments && ticket.attachments.filter(a => a.file_type !== 'completion').length > 0 && (
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '12px' }}>
+                                        {ticket.attachments.filter(a => a.file_type !== 'completion').map(att => (
+                                            <div key={att.id} style={{ position: 'relative' }}>
+                                                <img
+                                                    src={att.file_url}
+                                                    alt={att.original_name}
+                                                    style={{
+                                                        width: '100%', height: '80px', objectFit: 'cover',
+                                                        borderRadius: '8px', cursor: 'pointer',
+                                                        opacity: deletePhotoIds.includes(att.id) ? 0.3 : 1,
+                                                        border: deletePhotoIds.includes(att.id) ? '2px solid #ef4444' : '1px solid rgba(255,255,255,0.1)',
+                                                    }}
+                                                    onClick={() => window.open(att.file_url, '_blank')}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setDeletePhotoIds(prev =>
+                                                        prev.includes(att.id)
+                                                            ? prev.filter(x => x !== att.id)
+                                                            : [...prev, att.id]
+                                                    )}
+                                                    style={{
+                                                        position: 'absolute', top: '4px', right: '4px',
+                                                        width: '22px', height: '22px', borderRadius: '50%',
+                                                        border: 'none', cursor: 'pointer', fontSize: '12px',
+                                                        background: deletePhotoIds.includes(att.id) ? '#10b981' : '#ef4444',
+                                                        color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    }}
+                                                >
+                                                    {deletePhotoIds.includes(att.id) ? '↩' : '✕'}
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                {deletePhotoIds.length > 0 && (
+                                    <div style={{ color: '#fca5a5', fontSize: '12px', marginBottom: '8px' }}>
+                                        ⚠️ 已標記 {deletePhotoIds.length} 張照片待刪除
+                                    </div>
+                                )}
+                                {/* 新增照片 */}
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    onChange={e => setNewPhotos(prev => [...prev, ...Array.from(e.target.files)])}
+                                    style={{ display: 'none' }}
+                                    id="supplement-photos"
+                                />
+                                <label htmlFor="supplement-photos" style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    gap: '8px', padding: '12px', borderRadius: '10px',
+                                    border: '2px dashed rgba(255,255,255,0.2)', cursor: 'pointer',
+                                    color: 'rgba(255,255,255,0.5)', fontSize: '14px',
+                                    background: 'rgba(255,255,255,0.04)',
+                                }}>
+                                    📎 新增照片
+                                </label>
+                                {newPhotos.length > 0 && (
+                                    <div style={{ marginTop: '8px' }}>
+                                        <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginBottom: '6px' }}>
+                                            新增 {newPhotos.length} 張照片：
+                                        </div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                                            {newPhotos.map((f, i) => (
+                                                <div key={i} style={{ position: 'relative' }}>
+                                                    <img
+                                                        src={URL.createObjectURL(f)}
+                                                        alt={f.name}
+                                                        style={{
+                                                            width: '100%', height: '80px', objectFit: 'cover',
+                                                            borderRadius: '8px', border: '1px solid rgba(59,130,246,0.3)',
+                                                        }}
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setNewPhotos(prev => prev.filter((_, j) => j !== i))}
+                                                        style={{
+                                                            position: 'absolute', top: '4px', right: '4px',
+                                                            width: '22px', height: '22px', borderRadius: '50%',
+                                                            border: 'none', background: '#ef4444', color: '#fff',
+                                                            cursor: 'pointer', fontSize: '12px',
+                                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                        }}
+                                                    >✕</button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         <button
@@ -604,6 +718,50 @@ export default function TrackDetail() {
                             </div>
                         </div>
                     ))}
+
+                    {/* 報修照片 */}
+                    {ticket.attachments && ticket.attachments.filter(a => a.file_type !== 'completion').length > 0 && (
+                        <div style={{ paddingTop: '12px' }}>
+                            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px', marginBottom: '8px' }}>📷 報修照片</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                                {ticket.attachments.filter(a => a.file_type !== 'completion').map(att => (
+                                    <img
+                                        key={att.id}
+                                        src={att.file_url}
+                                        alt={att.original_name}
+                                        style={{
+                                            width: '100%', height: '80px', objectFit: 'cover',
+                                            borderRadius: '8px', cursor: 'pointer',
+                                            border: '1px solid rgba(255,255,255,0.1)',
+                                        }}
+                                        onClick={() => window.open(att.file_url, '_blank')}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 完工照片 */}
+                    {ticket.attachments && ticket.attachments.filter(a => a.file_type === 'completion').length > 0 && (
+                        <div style={{ paddingTop: '12px' }}>
+                            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px', marginBottom: '8px' }}>✅ 完工照片</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                                {ticket.attachments.filter(a => a.file_type === 'completion').map(att => (
+                                    <img
+                                        key={att.id}
+                                        src={att.file_url}
+                                        alt={att.original_name}
+                                        style={{
+                                            width: '100%', height: '80px', objectFit: 'cover',
+                                            borderRadius: '8px', cursor: 'pointer',
+                                            border: '1px solid rgba(16,185,129,0.3)',
+                                        }}
+                                        onClick={() => window.open(att.file_url, '_blank')}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Timestamps */}
