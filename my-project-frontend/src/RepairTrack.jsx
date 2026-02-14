@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 
 export default function RepairTrack() {
     const navigate = useNavigate()
-    const [phone, setPhone] = useState('09')
+    const [phone, setPhone] = useState('') // 只存8碼
     const [ticketNo, setTicketNo] = useState('')
     const [tickets, setTickets] = useState(null)
     const [loading, setLoading] = useState(false)
@@ -21,13 +21,13 @@ export default function RepairTrack() {
 
     const handleSearch = async (e) => {
         e.preventDefault()
-        if (!phone.trim() || !ticketNo.trim()) return
+        if (phone.length !== 8 || !ticketNo.trim()) return
         setLoading(true)
         setError('')
         setTickets(null)
 
         try {
-            const params = new URLSearchParams({ phone, ticket_no: ticketNo })
+            const params = new URLSearchParams({ phone: `09${phone}`, ticket_no: ticketNo })
             const res = await fetch(
                 `${import.meta.env.VITE_API_URL}/api/tickets/track?${params}`
             )
@@ -46,7 +46,7 @@ export default function RepairTrack() {
 
     const goToDetail = (ticket) => {
         navigate(`/track/${ticket.id}`, {
-            state: { phone, ticketNo, ticket }
+            state: { phone: `09${phone}`, ticketNo, ticket }
         })
     }
 
@@ -98,17 +98,28 @@ export default function RepairTrack() {
                     <label style={{ color: 'rgba(255,255,255,0.7)', fontSize: '13px', display: 'block', marginBottom: '8px' }}>
                         手機號碼 *
                     </label>
-                    <input
-                        type="tel" value={phone}
-                        onChange={e => setPhone(e.target.value)}
-                        placeholder="09xxxxxxxx"
-                        style={{
-                            width: '100%', padding: '12px 16px', borderRadius: '10px',
-                            border: '1px solid rgba(255,255,255,0.15)', fontSize: '16px',
-                            background: 'rgba(255,255,255,0.06)', color: '#fff',
-                            boxSizing: 'border-box', outline: 'none',
-                        }}
-                    />
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <span style={{
+                            padding: '12px 14px', background: 'rgba(255,255,255,0.15)',
+                            borderRadius: '10px 0 0 10px', border: '1px solid rgba(255,255,255,0.15)',
+                            borderRight: 'none', fontWeight: '700', fontSize: '16px', color: '#fff',
+                        }}>09</span>
+                        <input
+                            type="tel" value={phone}
+                            onChange={e => {
+                                const v = e.target.value.replace(/\D/g, '').slice(0, 8)
+                                setPhone(v)
+                            }}
+                            maxLength={8}
+                            placeholder="12345678"
+                            style={{
+                                flex: 1, padding: '12px 16px', borderRadius: '0 10px 10px 0',
+                                border: '1px solid rgba(255,255,255,0.15)', fontSize: '16px',
+                                background: 'rgba(255,255,255,0.06)', color: '#fff',
+                                boxSizing: 'border-box', outline: 'none',
+                            }}
+                        />
+                    </div>
 
                     <div style={{
                         background: 'rgba(255,255,255,0.04)', borderRadius: '8px',
@@ -119,11 +130,11 @@ export default function RepairTrack() {
                         </p>
                     </div>
 
-                    <button type="submit" disabled={loading || !phone.trim() || !ticketNo.trim()} style={{
+                    <button type="submit" disabled={loading || phone.length !== 8 || !ticketNo.trim()} style={{
                         width: '100%', marginTop: '14px', padding: '12px',
                         borderRadius: '10px', border: 'none', fontSize: '15px',
                         fontWeight: '600', cursor: 'pointer', color: '#fff',
-                        background: loading || !phone.trim() || !ticketNo.trim() ? '#4b5563' : '#3b82f6',
+                        background: loading || phone.length !== 8 || !ticketNo.trim() ? '#4b5563' : '#3b82f6',
                     }}>
                         {loading ? '⏳ 查詢中...' : '🔍 查詢進度'}
                     </button>

@@ -40,7 +40,7 @@ export default function RepairForm() {
 
     // Step 2: 聯絡方式
     const [customerName, setCustomerName] = useState('')
-    const [phone, setPhone] = useState('09')
+    const [phone, setPhone] = useState('') // 只存後8碼
     const [city, setCity] = useState('')
     const [district, setDistrict] = useState('')
     const [addressDetail, setAddressDetail] = useState('')
@@ -78,7 +78,7 @@ export default function RepairForm() {
     // 驗證
     const canGoStep2 = category && description.trim()
     const address = city && district ? `${city}${district}${addressDetail}` : ''
-    const canGoStep3 = phone.trim() && city && district && addressDetail.trim()
+    const canGoStep3 = phone.trim().length === 8 && city && district && addressDetail.trim()
 
     // 送出
     const handleSubmit = async () => {
@@ -89,7 +89,7 @@ export default function RepairForm() {
             formData.append('title', `${category}報修 - ${address.substring(0, 20)}`)
             formData.append('description', description)
             formData.append('customer_name', customerName)
-            formData.append('phone', phone)
+            formData.append('phone', `09${phone}`)
             formData.append('address', address)
             formData.append('preferred_time_slot', preferredTimeSlot)
             if (notes) formData.append('notes_internal', notes)
@@ -118,7 +118,7 @@ export default function RepairForm() {
                 // 公開用戶：顯示成功畫面
                 setSuccessInfo({
                     ticketNo: data.ticket.ticket_no,
-                    phone: phone,
+                    phone: `09${phone}`,
                 })
             }
         } catch (err) {
@@ -348,8 +348,20 @@ export default function RepairForm() {
 
                     <div className="form-group">
                         <label>聯絡電話 *</label>
-                        <input type="tel" className="form-input" placeholder="例：0912345678"
-                            value={phone} onChange={e => setPhone(e.target.value)} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0' }}>
+                            <span style={{
+                                padding: '10px 12px', background: '#e5e7eb', borderRadius: '8px 0 0 8px',
+                                border: '1px solid #d1d5db', borderRight: 'none', fontWeight: '700',
+                                fontSize: '15px', color: '#374151',
+                            }}>09</span>
+                            <input type="tel" className="form-input" placeholder="12345678"
+                                maxLength={8}
+                                style={{ borderRadius: '0 8px 8px 0', flex: 1 }}
+                                value={phone} onChange={e => {
+                                    const v = e.target.value.replace(/\D/g, '').slice(0, 8)
+                                    setPhone(v)
+                                }} />
+                        </div>
                     </div>
 
                     <div className="form-group">
@@ -437,7 +449,7 @@ export default function RepairForm() {
                         )}
                         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', background: '#f9fafb', borderRadius: '8px' }}>
                             <span style={{ color: '#6b7280' }}>聯絡電話</span>
-                            <span>{phone}</span>
+                            <span>09{phone}</span>
                         </div>
                         <div style={{ padding: '10px 14px', background: '#f9fafb', borderRadius: '8px' }}>
                             <div style={{ color: '#6b7280', marginBottom: '4px' }}>服務地址</div>
