@@ -500,17 +500,23 @@ class TicketController extends Controller
     }
 
     /**
-     * 公開：根據手機號碼查詢工單進度
-     * GET /api/tickets/track?phone=0912345678
+     * 公開：根據手機號碼 + 維修編號 查詢工單進度
+     * GET /api/tickets/track?phone=0912345678&ticket_no=TK-xxx
      */
     public function trackByPhone(Request $request)
     {
         $phone = $request->input('phone', '');
+        $ticketNo = $request->input('ticket_no', '');
+
         if (strlen($phone) < 8) {
             return response()->json(['message' => '請輸入完整的手機號碼'], 422);
         }
+        if (empty($ticketNo)) {
+            return response()->json(['message' => '請輸入維修編號'], 422);
+        }
 
         $tickets = Ticket::where('phone', $phone)
+            ->where('ticket_no', $ticketNo)
             ->latest()
             ->limit(20)
             ->get(['id', 'ticket_no', 'category', 'title', 'status', 'created_at', 'completed_at', 'description_raw']);
@@ -523,6 +529,46 @@ class TicketController extends Controller
 
         return response()->json([
             'tickets' => $tickets,
+        ]);
+    }
+
+    /**
+     * 公開：查看單筆工單詳情（遮罩版）
+     * GET /api/tickets/track/{id}?phone=xxx&ticket_no=xxx
+     */
+    public function trackDetail(Request $request, $id)
+    {
+        $phone = $request->input('phone', '');
+        $ticketNo = $request->input('ticket_no', '');
+
+        // 雙重驗證：手機 + 編號都要符合
+        $ticket = Ticket::where('id', $id)
+            ->where('phone', $phone)
+            ->where('ticket_no', $ticketNo)
+            ->first();
+
+        if (!$ticket) {
+            return response()->json(['message' => '找不到此工單，或驗證資訊不符'], 404);
+        }
+
+        // 公開版：客戶安全遮罩
+        return response()->json([
+            'ticket' => [
+                'id' => $ticket->id,
+                'ticket_no' => $ticket->ticket_no,
+                'category' => $ticket->category,
+                'title' => $ticket->title,
+                'status' => $ticket->status,
+                'customer_name' => $this->maskName($ticket->customer_name),
+                'phone' => $this->maskPhone($ticket->phone),
+                'address' => $this->maskAddress($ticket->address),
+                'description' => $ticket->description_raw ? mb_substr($ticket->description_raw, 0, 80) : '',
+                'preferred_time_slot' => $ticket->preferred_time_slot,
+                'is_urgent' => $ticket->is_urgent,
+                'created_at' => $ticket->created_at,
+                'completed_at' => $ticket->completed_at,
+                'updated_at' => $ticket->updated_at,
+            ],
         ]);
     }
 
@@ -546,6 +592,22 @@ class TicketController extends Controller
         if ($len <= 4)
             return $phone;
         return substr($phone, 0, 4) . '***' . substr($phone, -3);
+    }
+
+    /** 地址遮罩：台北市大安區忠孝東路三段123號 → 台北市大安區*** */
+    private function maskAddress(?string $address): string
+    {
+        if (!$address)
+            return '';
+        // 嘗試匹配「XX市/縣 XX區/鎮/鄉」
+        if (preg_match('/^(.{2,3}[市縣].{2,3}[區鎮鄉市])/', $address, $matches)) {
+            return $matches[1] . '***';
+        }
+        // fallback：只顯示前 6 個字
+        $len = mb_strlen($address);
+        if ($len <= 6)
+            return '***';
+        return mb_substr($address, 0, 6) . '***';
     }
 
     /** 通用 fallback 遮罩 */

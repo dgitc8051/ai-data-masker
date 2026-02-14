@@ -12,6 +12,7 @@ import CsvMask from './CsvMask.jsx'
 import UserManage from './UserManage.jsx'
 import RepairForm from './RepairForm.jsx'
 import RepairTrack from './RepairTrack.jsx'
+import TrackDetail from './TrackDetail.jsx'
 import ContactPage from './ContactPage.jsx'
 import ServicesPage from './ServicesPage.jsx'
 import AboutPage from './AboutPage.jsx'
@@ -40,6 +41,7 @@ function AppRoutes() {
       <Route path="/home" element={<HomePage />} />
       <Route path="/repair" element={<RepairForm />} />
       <Route path="/track" element={<RepairTrack />} />
+      <Route path="/track/:id" element={<TrackDetail />} />
       <Route path="/contact" element={<ContactPage />} />
       <Route path="/services" element={<ServicesPage />} />
       <Route path="/about" element={<AboutPage />} />
