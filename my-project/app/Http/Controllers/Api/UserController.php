@@ -15,9 +15,19 @@ class UserController extends Controller
      */
     public function index()
     {
-        $users = User::select('id', 'name', 'username', 'role', 'created_at')
+        $users = User::select('id', 'name', 'username', 'role', 'line_user_id', 'created_at')
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->get()
+            ->map(function ($u) {
+                return [
+                    'id' => $u->id,
+                    'name' => $u->name,
+                    'username' => $u->username,
+                    'role' => $u->role,
+                    'line_bound' => !empty($u->line_user_id),
+                    'created_at' => $u->created_at,
+                ];
+            });
 
         return response()->json($users);
     }
@@ -91,5 +101,52 @@ class UserController extends Controller
         $user->delete();
 
         return response()->json(['message' => '使用者已刪除']);
+    }
+
+    /**
+     * 修改密碼（管理員用）
+     * PATCH /api/users/{id}/password
+     */
+    public function updatePassword(Request $request, $id)
+    {
+        $request->validate([
+            'password' => 'required|string|min:3',
+        ]);
+
+        $user = User::find($id);
+        if (!$user) {
+            return response()->json(['message' => '找不到此使用者'], 404);
+        }
+
+        $user->update(['password' => Hash::make($request->password)]);
+
+        // 讓舊 token 失效（強制重新登入）
+        $user->tokens()->delete();
+
+        return response()->json([
+            'message' => "已更新「{$user->name}」的密碼",
+        ]);
+    }
+
+    /**
+     * 解除 LINE 綁定（管理員用）
+     * DELETE /api/users/{id}/line
+     */
+    public function unbindLine($id)
+    {
+        $user = User::find($id);
+        if (!$user) {
+            return response()->json(['message' => '找不到此使用者'], 404);
+        }
+
+        if (empty($user->line_user_id)) {
+            return response()->json(['message' => '此使用者尚未綁定 LINE'], 400);
+        }
+
+        $user->update(['line_user_id' => null]);
+
+        return response()->json([
+            'message' => "已解除「{$user->name}」的 LINE 綁定",
+        ]);
     }
 }

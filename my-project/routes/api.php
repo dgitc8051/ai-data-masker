@@ -29,6 +29,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/users', [UserController::class, 'index']);
     Route::get('/users/workers', [UserController::class, 'workers']);
     Route::post('/users', [UserController::class, 'store']);
+    Route::patch('/users/{id}/password', [UserController::class, 'updatePassword']);
+    Route::delete('/users/{id}/line', [UserController::class, 'unbindLine']);
     Route::delete('/users/{id}', [UserController::class, 'destroy']);
 
     // 遮罩 API

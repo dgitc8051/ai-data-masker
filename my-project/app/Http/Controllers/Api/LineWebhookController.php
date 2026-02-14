@@ -108,6 +108,52 @@ class LineWebhookController extends Controller
             return;
         }
 
+        // 解除綁定指令：「解除綁定 帳號 密碼」
+        if (preg_match('/^解除綁定\s+(\S+)\s+(\S+)$/u', $text, $matches)) {
+            $username = trim($matches[1]);
+            $password = trim($matches[2]);
+            $user = User::where('username', $username)->first();
+
+            if (!$user || !Hash::check($password, $user->password)) {
+                $lineService->pushMessage(
+                    $lineUserId,
+                    "❌ 帳號或密碼錯誤\n" .
+                    "請確認後再試一次。\n\n" .
+                    "格式：解除綁定 帳號 密碼"
+                );
+                return;
+            }
+
+            if ($user->line_user_id !== $lineUserId) {
+                $lineService->pushMessage(
+                    $lineUserId,
+                    "⚠️ 此帳號並非綁定在這個 LINE 帳號上"
+                );
+                return;
+            }
+
+            $user->update(['line_user_id' => null]);
+            $lineService->pushMessage(
+                $lineUserId,
+                "✅ 已解除綁定！\n\n" .
+                "帳號：{$user->name}（{$user->username}）\n\n" .
+                "之後將不會收到 LINE 通知。\n" .
+                "如需重新綁定，請輸入：綁定 帳號 密碼"
+            );
+            Log::info("LINE 帳號解除綁定: {$username}");
+            return;
+        }
+
+        if (str_starts_with($text, '解除綁定')) {
+            $lineService->pushMessage(
+                $lineUserId,
+                "⚠️ 格式錯誤\n\n" .
+                "正確格式：解除綁定 帳號 密碼\n" .
+                "例如：解除綁定 worker1 worker123"
+            );
+            return;
+        }
+
         if (str_starts_with($text, '綁定')) {
             $lineService->pushMessage(
                 $lineUserId,
