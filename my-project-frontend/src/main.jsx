@@ -16,6 +16,7 @@ import TrackDetail from './TrackDetail.jsx'
 import ContactPage from './ContactPage.jsx'
 import ServicesPage from './ServicesPage.jsx'
 import PricingPage from './PricingPage.jsx'
+import LineCustomers from './LineCustomers.jsx'
 
 // 未登入 → 跳轉登入頁
 function RequireAuth({ children }) {
@@ -55,6 +56,7 @@ function AppRoutes() {
       <Route path="/create" element={<RequireAuth><AdminOnly><TicketCreate /></AdminOnly></RequireAuth>} />
       <Route path="/csv" element={<RequireAuth><AdminOnly><CsvMask /></AdminOnly></RequireAuth>} />
       <Route path="/users" element={<RequireAuth><AdminOnly><UserManage /></AdminOnly></RequireAuth>} />
+      <Route path="/line-customers" element={<RequireAuth><AdminOnly><LineCustomers /></AdminOnly></RequireAuth>} />
 
       <Route path="*" element={<Navigate to="/home" replace />} />
     </Routes>

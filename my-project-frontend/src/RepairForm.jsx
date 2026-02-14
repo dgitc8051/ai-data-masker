@@ -33,9 +33,10 @@ export default function RepairForm() {
     const [workers, setWorkers] = useState([])
     const [successInfo, setSuccessInfo] = useState(null) // { ticketNo, phone }
     const [lineUserId, setLineUserId] = useState('')
+    const [lineDisplayName, setLineDisplayName] = useState('')
     const [liffReady, setLiffReady] = useState(false)
 
-    // LIFF 初始化（強制 LINE 登入取得客戶 LINE ID）
+    // LIFF 初始化（強制 LINE 登入 → 註冊客戶 → 自動帶入舊資料）
     useEffect(() => {
         const liffId = import.meta.env.VITE_LIFF_ID
         if (!liffId) {
@@ -44,24 +45,61 @@ export default function RepairForm() {
             return
         }
         liff.init({ liffId })
-            .then(() => {
+            .then(async () => {
                 if (!liff.isLoggedIn()) {
-                    // 未登入 → 強制跳轉 LINE 登入
                     liff.login({ redirectUri: window.location.href })
                     return
                 }
-                // 已登入 → 取得 LINE User ID
-                liff.getProfile()
-                    .then(profile => {
-                        setLineUserId(profile.userId)
-                        console.log('LIFF LINE User ID:', profile.userId)
+                try {
+                    const profile = await liff.getProfile()
+                    setLineUserId(profile.userId)
+                    setLineDisplayName(profile.displayName)
+
+                    // 註冊到 line_customers + 取得過去資料
+                    const res = await fetch(`${API}/api/line-customers/register`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                        body: JSON.stringify({
+                            line_user_id: profile.userId,
+                            line_display_name: profile.displayName,
+                            avatar_url: profile.pictureUrl || '',
+                        }),
                     })
-                    .catch(err => console.warn('LIFF getProfile 失敗:', err))
-                    .finally(() => setLiffReady(true))
+                    const data = await res.json()
+                    // 自動帶入過去報修資料（回頭客）
+                    if (data.customer) {
+                        if (data.customer.customer_name) setCustomerName(data.customer.customer_name)
+                        if (data.customer.phone) {
+                            const p = data.customer.phone.replace(/^09/, '')
+                            setPhone(p)
+                        }
+                        if (data.customer.address) {
+                            // 嘗試解析地址：前 3 字 = 縣市, 3~6 = 區
+                            const addr = data.customer.address
+                            for (const c of Object.keys(TW)) {
+                                if (addr.startsWith(c)) {
+                                    setCity(c)
+                                    const rest = addr.slice(c.length)
+                                    for (const d of (TW[c] || [])) {
+                                        if (rest.startsWith(d)) {
+                                            setDistrict(d)
+                                            setAddressDetail(rest.slice(d.length))
+                                            break
+                                        }
+                                    }
+                                    break
+                                }
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.warn('LIFF 登入/註冊失敗:', err)
+                }
+                setLiffReady(true)
             })
             .catch(err => {
                 console.warn('LIFF 初始化失敗:', err)
-                setLiffReady(true) // 失敗也繼續讓用戶報修
+                setLiffReady(true)
             })
     }, [])
 

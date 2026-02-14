@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\CustomFieldController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\LineWebhookController;
+use App\Http\Controllers\Api\LineCustomerController;
 
 // === 公開路由 ===
 Route::post('/login', [AuthController::class, 'login']);
@@ -21,6 +22,7 @@ Route::patch('/tickets/track/{id}/supplement', [TicketController::class, 'supple
 Route::post('/tickets/track/{id}/confirm-time', [TicketController::class, 'confirmTimeSlot']); // 客戶確認時段
 Route::post('/tickets/track/{id}/cancel', [TicketController::class, 'customerCancelTicket']); // 客戶取消
 Route::post('/line/webhook', [LineWebhookController::class, 'webhook']); // LINE Webhook
+Route::post('/line-customers/register', [LineCustomerController::class, 'register']); // LIFF 客戶註冊
 
 // === 需要登入的路由 ===
 Route::middleware('auth:sanctum')->group(function () {
@@ -74,4 +76,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // LINE 綁定
     Route::patch('/users/{id}/line', [LineWebhookController::class, 'bindLineUser']);
+
+    // LINE 客戶名冊
+    Route::get('/line-customers', [LineCustomerController::class, 'index']);
 });

@@ -106,6 +106,16 @@ class TicketController extends Controller
                 'created_by' => $user ? $user->name : $request->input('created_by', '匿名'),
             ]);
 
+            // 同步更新 LINE 客戶名冊（用於回頭客自動帶入）
+            if ($request->input('customer_line_id')) {
+                \App\Models\LineCustomer::where('line_user_id', $request->input('customer_line_id'))
+                    ->update([
+                        'customer_name' => $request->input('customer_name'),
+                        'phone' => $request->input('phone'),
+                        'address' => $request->input('address'),
+                    ]);
+            }
+
             // 處理附件
             if ($request->hasFile('attachments')) {
                 foreach ($request->file('attachments') as $file) {

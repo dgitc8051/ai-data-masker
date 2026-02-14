@@ -93,6 +93,7 @@ export default function TicketList() {
                     <Link to="/create" className="btn btn-primary">+ 遮罩工單</Link>
                     <Link to="/csv" className="btn btn-secondary">📊 CSV 遮罩</Link>
                     <Link to="/users" className="btn btn-secondary">👥 使用者管理</Link>
+                    <Link to="/line-customers" className="btn btn-secondary" style={{ background: '#06b6d4', color: '#fff' }}>📱 LINE 客戶</Link>
                 </div>
             )}
 
