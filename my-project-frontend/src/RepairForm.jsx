@@ -35,12 +35,13 @@ export default function RepairForm() {
     const [lineUserId, setLineUserId] = useState('')
     const [lineDisplayName, setLineDisplayName] = useState('')
     const [liffReady, setLiffReady] = useState(false)
+    const [liffError, setLiffError] = useState('')
 
     // LIFF 初始化（強制 LINE 登入 → 註冊客戶 → 自動帶入舊資料）
     useEffect(() => {
         const liffId = import.meta.env.VITE_LIFF_ID
         if (!liffId) {
-            console.warn('VITE_LIFF_ID 未設定，跳過 LIFF 初始化')
+            setLiffError('系統設定錯誤（LIFF ID 未設定），請聯繫管理員')
             setLiffReady(true)
             return
         }
@@ -94,11 +95,13 @@ export default function RepairForm() {
                     }
                 } catch (err) {
                     console.warn('LIFF 登入/註冊失敗:', err)
+                    setLiffError('LINE 登入失敗，請透過 LINE 的選單重新開啟')
                 }
                 setLiffReady(true)
             })
             .catch(err => {
                 console.warn('LIFF 初始化失敗:', err)
+                setLiffError('LINE 連線失敗，請透過 LINE 的選單重新開啟')
                 setLiffReady(true)
             })
     }, [])
@@ -282,6 +285,34 @@ export default function RepairForm() {
                         ← 返回首頁
                     </Link>
                 </div>
+            </div>
+        )
+    }
+
+    // ─── LIFF 阻擋畫面 ───
+    if (!liffReady) {
+        return (
+            <div className="container" style={{ textAlign: 'center', padding: '80px 20px' }}>
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔄</div>
+                <h2>正在連線 LINE...</h2>
+                <p style={{ color: '#6b7280' }}>請稍候，正在進行 LINE 身份驗證</p>
+            </div>
+        )
+    }
+
+    if (liffError || !lineUserId) {
+        return (
+            <div className="container" style={{ textAlign: 'center', padding: '80px 20px' }}>
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
+                <h2>需要透過 LINE 登入</h2>
+                <p style={{ color: '#6b7280', marginBottom: '20px' }}>
+                    {liffError || '請透過 LINE 的選單開啟報修頁面，以便我們通知您維修進度。'}
+                </p>
+                <button
+                    className="btn btn-primary"
+                    style={{ background: '#06c755', borderColor: '#06c755' }}
+                    onClick={() => window.location.reload()}
+                >🔄 重新嘗試</button>
             </div>
         )
     }
