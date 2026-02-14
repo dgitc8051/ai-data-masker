@@ -17,6 +17,7 @@ Route::post('/repair-tickets', [TicketController::class, 'store']); // 公開報
 Route::get('/tickets/track', [TicketController::class, 'trackByPhone']); // 公開追蹤
 Route::get('/tickets/track/{id}', [TicketController::class, 'trackDetail']); // 公開詳情（遮罩版）
 Route::post('/tickets/track/{id}/confirm-quote', [TicketController::class, 'confirmQuote']); // 客戶確認報價
+Route::patch('/tickets/track/{id}/supplement', [TicketController::class, 'supplementTicket']); // 客戶補件
 Route::post('/line/webhook', [LineWebhookController::class, 'webhook']); // LINE Webhook
 
 // === 需要登入的路由 ===

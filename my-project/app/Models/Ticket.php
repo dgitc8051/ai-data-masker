@@ -39,9 +39,11 @@ class Ticket extends Model
         // 工作流程
         'accepted_at',
         'completion_note',
+        'supplement_note',
         'quoted_amount',
         'actual_amount',
         'quote_confirmed_at',
+        'customer_line_id',
     ];
 
     protected $casts = [

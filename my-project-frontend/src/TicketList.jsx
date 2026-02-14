@@ -6,6 +6,7 @@ const STATUS_MAP = {
     all: { label: '全部', color: '#6b7280' },
     new: { label: '新案件', color: '#3b82f6' },
     need_more_info: { label: '待補件', color: '#f59e0b' },
+    info_submitted: { label: '補件完成待審核', color: '#f97316' },
     scheduled: { label: '已排程', color: '#8b5cf6' },
     dispatched: { label: '已派工', color: '#06b6d4' },
     done: { label: '完工', color: '#10b981' },

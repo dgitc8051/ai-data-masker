@@ -432,7 +432,8 @@ class TicketController extends Controller
      */
     private const STATUS_TRANSITIONS = [
         'new' => ['need_more_info', 'scheduled', 'dispatched'],
-        'need_more_info' => ['new', 'scheduled', 'dispatched'],
+        'need_more_info' => ['new', 'info_submitted', 'scheduled', 'dispatched'],
+        'info_submitted' => ['need_more_info', 'scheduled', 'dispatched'],
         'scheduled' => ['dispatched'],
         'dispatched' => ['in_progress'],
         'in_progress' => ['done'],
@@ -470,13 +471,17 @@ class TicketController extends Controller
 
         if ($newStatus === 'done' || $newStatus === 'completed') {
             $ticket->completed_at = now();
-            // 完工說明 + 實收金額
             if ($request->has('completion_note')) {
                 $ticket->completion_note = $request->input('completion_note');
             }
             if ($request->has('actual_amount')) {
                 $ticket->actual_amount = $request->input('actual_amount');
             }
+        }
+
+        // 待補件 → 記錄補件說明
+        if ($newStatus === 'need_more_info' && $request->has('supplement_note')) {
+            $ticket->supplement_note = $request->input('supplement_note');
         }
 
         $ticket->save();
@@ -486,7 +491,7 @@ class TicketController extends Controller
             $lineService = new LineNotifyService();
 
             if ($newStatus === 'done') {
-                // 完工 → 通知管理員（含金額資訊）
+                // 完工 → 通知管理員
                 $adminLineIds = User::where('role', 'admin')
                     ->whereNotNull('line_user_id')
                     ->pluck('line_user_id')
@@ -497,6 +502,18 @@ class TicketController extends Controller
                 $lineService->pushToMultiple(
                     $adminLineIds,
                     "✅ {$ticket->ticket_no} 已完工\n師傅：{$workerName}{$amountInfo}{$noteInfo}"
+                );
+            }
+
+            // 待補件 → 通知客戶（LINE）
+            if ($newStatus === 'need_more_info' && $ticket->customer_line_id) {
+                $frontendUrl = env('FRONTEND_URL', 'https://ai-data-masker-production-fda9.up.railway.app');
+                $supplementNote = $ticket->supplement_note ? "\n\n📝 需補充：\n{$ticket->supplement_note}" : '';
+                $lineService->pushMessage(
+                    $ticket->customer_line_id,
+                    "📋 您的維修單 {$ticket->ticket_no} 需要補充資料{$supplementNote}\n\n"
+                    . "請點擊以下連結補充：\n{$frontendUrl}/track\n\n"
+                    . "輸入維修編號和手機號碼後即可編輯。"
                 );
             }
         } catch (\Exception $e) {
@@ -745,25 +762,105 @@ class TicketController extends Controller
         }
 
         // 公開版：客戶安全遮罩
+        $ticketData = [
+            'id' => $ticket->id,
+            'ticket_no' => $ticket->ticket_no,
+            'category' => $ticket->category,
+            'title' => $ticket->title,
+            'status' => $ticket->status,
+            'customer_name' => $this->maskName($ticket->customer_name),
+            'phone' => $this->maskPhone($ticket->phone),
+            'address' => $this->maskAddress($ticket->address),
+            'description' => $ticket->description_raw ? mb_substr($ticket->description_raw, 0, 80) : '',
+            'preferred_time_slot' => $ticket->preferred_time_slot,
+            'is_urgent' => $ticket->is_urgent,
+            'supplement_note' => $ticket->supplement_note,
+            'quoted_amount' => $ticket->quoted_amount,
+            'actual_amount' => $ticket->actual_amount,
+            'quote_confirmed_at' => $ticket->quote_confirmed_at,
+            'created_at' => $ticket->created_at,
+            'completed_at' => $ticket->completed_at,
+            'updated_at' => $ticket->updated_at,
+        ];
+
+        // 待補件時回傳完整可編輯資料（不遮罩）
+        if ($ticket->status === 'need_more_info') {
+            $ticketData['editable'] = true;
+            $ticketData['customer_name'] = $ticket->customer_name;
+            $ticketData['phone_raw'] = $ticket->phone;
+            $ticketData['address'] = $ticket->address;
+            $ticketData['description'] = $ticket->description_raw ?? '';
+            $ticketData['category'] = $ticket->category;
+            $ticketData['preferred_time_slot'] = $ticket->preferred_time_slot;
+            $ticketData['is_urgent'] = $ticket->is_urgent;
+        }
+
         return response()->json([
+            'ticket' => $ticketData,
+        ]);
+    }
+
+    /**
+     * 公開：客戶補件
+     * PATCH /api/tickets/track/{id}/supplement
+     */
+    public function supplementTicket(Request $request, $id)
+    {
+        $phone = $request->input('phone', '');
+        $ticketNo = $request->input('ticket_no', '');
+
+        $ticket = Ticket::where('id', $id)
+            ->where('phone', $phone)
+            ->where('ticket_no', $ticketNo)
+            ->first();
+
+        if (!$ticket) {
+            return response()->json(['message' => '找不到此工單，或驗證資訊不符'], 404);
+        }
+
+        if ($ticket->status !== 'need_more_info') {
+            return response()->json(['message' => '此工單目前不接受補件'], 422);
+        }
+
+        // 更新可編輯欄位
+        $updatable = ['customer_name', 'address', 'description_raw', 'category', 'preferred_time_slot', 'is_urgent'];
+        foreach ($updatable as $field) {
+            if ($request->has($field)) {
+                $ticket->{$field} = $request->input($field);
+            }
+        }
+
+        // 自動變更狀態為「補件完成待審核」
+        $ticket->status = 'info_submitted';
+        $ticket->save();
+
+        // 通知管理員
+        try {
+            $lineService = new LineNotifyService();
+            $adminLineIds = User::where('role', 'admin')
+                ->whereNotNull('line_user_id')
+                ->pluck('line_user_id')
+                ->toArray();
+
+            if (!empty($adminLineIds)) {
+                $lineService->pushToMultiple(
+                    $adminLineIds,
+                    "📥 客戶已補件\n\n"
+                    . "編號：{$ticket->ticket_no}\n"
+                    . "類別：{$ticket->category}\n"
+                    . "說明：" . mb_substr($ticket->description_raw ?? '', 0, 50) . "\n\n"
+                    . "請至後台審核。"
+                );
+            }
+        } catch (\Exception $e) {
+            \Log::warning('LINE 補件通知失敗: ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'message' => '補件送出成功，等待客服審核',
             'ticket' => [
                 'id' => $ticket->id,
-                'ticket_no' => $ticket->ticket_no,
-                'category' => $ticket->category,
-                'title' => $ticket->title,
                 'status' => $ticket->status,
-                'customer_name' => $this->maskName($ticket->customer_name),
-                'phone' => $this->maskPhone($ticket->phone),
-                'address' => $this->maskAddress($ticket->address),
-                'description' => $ticket->description_raw ? mb_substr($ticket->description_raw, 0, 80) : '',
-                'preferred_time_slot' => $ticket->preferred_time_slot,
-                'is_urgent' => $ticket->is_urgent,
-                'quoted_amount' => $ticket->quoted_amount,
-                'actual_amount' => $ticket->actual_amount,
-                'quote_confirmed_at' => $ticket->quote_confirmed_at,
-                'created_at' => $ticket->created_at,
-                'completed_at' => $ticket->completed_at,
-                'updated_at' => $ticket->updated_at,
             ],
         ]);
     }

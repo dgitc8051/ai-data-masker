@@ -4,6 +4,9 @@ import { Link, useParams, useLocation } from 'react-router-dom'
 const statusMap = {
     new: { label: '新建立', color: '#f59e0b', icon: '📝' },
     pending: { label: '待處理', color: '#f59e0b', icon: '⏳' },
+    need_more_info: { label: '待補件', color: '#ef4444', icon: '📢' },
+    info_submitted: { label: '補件完成待審核', color: '#f97316', icon: '📥' },
+    scheduled: { label: '已排程', color: '#8b5cf6', icon: '📅' },
     dispatched: { label: '已派工', color: '#3b82f6', icon: '🚗' },
     in_progress: { label: '處理中', color: '#8b5cf6', icon: '🔧' },
     done: { label: '已完工', color: '#10b981', icon: '✅' },
@@ -12,7 +15,7 @@ const statusMap = {
 }
 
 // 進度步驟
-const statusSteps = ['new', 'dispatched', 'in_progress', 'done', 'completed']
+const statusSteps = ['new', 'dispatched', 'in_progress', 'done', 'closed']
 
 export default function TrackDetail() {
     const { id } = useParams()
@@ -24,6 +27,10 @@ export default function TrackDetail() {
     const [error, setError] = useState('')
     const [confirming, setConfirming] = useState(false)
     const [confirmed, setConfirmed] = useState(false)
+    // 補件編輯
+    const [editForm, setEditForm] = useState({})
+    const [submitting, setSubmitting] = useState(false)
+    const [submitted, setSubmitted] = useState(false)
 
     useEffect(() => {
         if (!phone || !ticketNo) {
@@ -44,6 +51,17 @@ export default function TrackDetail() {
             if (res.ok) {
                 setTicket(data.ticket)
                 if (data.ticket.quote_confirmed_at) setConfirmed(true)
+                // 補件模式：預填表單
+                if (data.ticket.editable) {
+                    setEditForm({
+                        customer_name: data.ticket.customer_name || '',
+                        address: data.ticket.address || '',
+                        description_raw: data.ticket.description || '',
+                        category: data.ticket.category || '',
+                        preferred_time_slot: data.ticket.preferred_time_slot || '',
+                        is_urgent: data.ticket.is_urgent || false,
+                    })
+                }
             } else {
                 setError(data.message || '查詢失敗')
             }
@@ -78,6 +96,39 @@ export default function TrackDetail() {
         } finally {
             setConfirming(false)
         }
+    }
+
+    // 補件提交
+    const handleSupplement = async () => {
+        setSubmitting(true)
+        try {
+            const res = await fetch(
+                `${import.meta.env.VITE_API_URL}/api/tickets/track/${id}/supplement`,
+                {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone, ticket_no: ticketNo, ...editForm }),
+                }
+            )
+            const data = await res.json()
+            if (res.ok) {
+                setSubmitted(true)
+                fetchDetail()
+            } else {
+                alert(data.message || '補件失敗')
+            }
+        } catch {
+            alert('網路連線錯誤')
+        } finally {
+            setSubmitting(false)
+        }
+    }
+
+    const inputStyle = {
+        width: '100%', padding: '10px 14px', borderRadius: '8px',
+        border: '1px solid rgba(255,255,255,0.15)', fontSize: '14px',
+        background: 'rgba(255,255,255,0.08)', color: '#fff',
+        boxSizing: 'border-box',
     }
 
     if (loading) {
@@ -191,6 +242,132 @@ export default function TrackDetail() {
                         ))}
                     </div>
                 </div>
+
+                {/* ===== 待補件區域 ===== */}
+                {ticket.status === 'need_more_info' && !submitted && (
+                    <div style={{
+                        background: 'rgba(239,68,68,0.1)', borderRadius: '14px',
+                        padding: '20px', border: '1px solid rgba(239,68,68,0.3)',
+                        marginBottom: '16px',
+                    }}>
+                        <div style={{ fontSize: '18px', fontWeight: '700', color: '#fca5a5', marginBottom: '12px' }}>
+                            📢 請補充資料
+                        </div>
+
+                        {/* 客服留言 */}
+                        {ticket.supplement_note && (
+                            <div style={{
+                                padding: '12px 14px', background: 'rgba(255,255,255,0.08)',
+                                borderRadius: '10px', marginBottom: '16px',
+                                borderLeft: '3px solid #fca5a5',
+                            }}>
+                                <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '11px', marginBottom: '4px' }}>客服說明：</div>
+                                <div style={{ color: '#fff', fontSize: '14px', whiteSpace: 'pre-wrap' }}>
+                                    {ticket.supplement_note}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 編輯表單 */}
+                        <div style={{ display: 'grid', gap: '12px' }}>
+                            {[
+                                { key: 'customer_name', label: '姓名', type: 'text' },
+                                { key: 'category', label: '報修類別', type: 'select', options: ['水管', '電路', '冒氣', '熱水器', '其他'] },
+                                { key: 'address', label: '服務地址', type: 'text' },
+                                { key: 'preferred_time_slot', label: '偏好時段', type: 'select', options: ['上午 (9-12)', '下午 (13-17)', '晚上 (18-21)', '皆可'] },
+                            ].map(field => (
+                                <div key={field.key}>
+                                    <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', display: 'block', marginBottom: '4px' }}>
+                                        {field.label}
+                                    </label>
+                                    {field.type === 'select' ? (
+                                        <select
+                                            value={editForm[field.key] || ''}
+                                            onChange={e => setEditForm({ ...editForm, [field.key]: e.target.value })}
+                                            style={inputStyle}
+                                        >
+                                            <option value="">請選擇</option>
+                                            {field.options.map(o => <option key={o} value={o}>{o}</option>)}
+                                        </select>
+                                    ) : (
+                                        <input
+                                            type="text"
+                                            value={editForm[field.key] || ''}
+                                            onChange={e => setEditForm({ ...editForm, [field.key]: e.target.value })}
+                                            style={inputStyle}
+                                        />
+                                    )}
+                                </div>
+                            ))}
+
+                            <div>
+                                <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', display: 'block', marginBottom: '4px' }}>
+                                    問題描述
+                                </label>
+                                <textarea
+                                    value={editForm.description_raw || ''}
+                                    onChange={e => setEditForm({ ...editForm, description_raw: e.target.value })}
+                                    rows={4}
+                                    style={{ ...inputStyle, resize: 'vertical' }}
+                                />
+                            </div>
+
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#fff', fontSize: '14px' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={editForm.is_urgent || false}
+                                    onChange={e => setEditForm({ ...editForm, is_urgent: e.target.checked })}
+                                />
+                                🔴 緊急件
+                            </label>
+                        </div>
+
+                        <button
+                            onClick={handleSupplement}
+                            disabled={submitting}
+                            style={{
+                                width: '100%', padding: '14px', borderRadius: '12px',
+                                border: 'none', cursor: submitting ? 'not-allowed' : 'pointer',
+                                background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                                color: '#fff', fontSize: '16px', fontWeight: '700',
+                                marginTop: '16px', opacity: submitting ? 0.6 : 1,
+                            }}
+                        >
+                            {submitting ? '⏳ 送出中...' : '📤 送出補件'}
+                        </button>
+                    </div>
+                )}
+
+                {/* 補件成功提示 */}
+                {(submitted || ticket.status === 'info_submitted') && (
+                    <div style={{
+                        background: 'rgba(16,185,129,0.1)', borderRadius: '14px',
+                        padding: '20px', border: '1px solid rgba(16,185,129,0.3)',
+                        marginBottom: '16px', textAlign: 'center',
+                    }}>
+                        <div style={{ fontSize: '32px', marginBottom: '8px' }}>✅</div>
+                        <div style={{ color: '#34d399', fontSize: '16px', fontWeight: '700' }}>
+                            補件已送出，等待客服審核
+                        </div>
+                        <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', marginTop: '6px' }}>
+                            客服確認後會安排師傅前往處理
+                        </div>
+                    </div>
+                )}
+
+                {/* 待補件說明（非補件狀態時也顯示） */}
+                {ticket.supplement_note && ticket.status !== 'need_more_info' && (
+                    <div style={{
+                        background: 'rgba(255,255,255,0.06)', borderRadius: '14px',
+                        padding: '16px 20px', border: '1px solid rgba(255,255,255,0.08)',
+                        marginBottom: '16px',
+                    }}>
+                        <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginBottom: '6px' }}>📝 客服備註</div>
+                        <div style={{ color: '#fff', fontSize: '14px', whiteSpace: 'pre-wrap' }}>
+                            {ticket.supplement_note}
+                        </div>
+                    </div>
+                )}
 
                 {/* ===== 報價確認區 ===== */}
                 {ticket.quoted_amount && (

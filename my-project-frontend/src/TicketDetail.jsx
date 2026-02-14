@@ -5,6 +5,7 @@ import { useAuth } from './AuthContext'
 const STATUS_MAP = {
     new: { label: '新案件', color: '#3b82f6' },
     need_more_info: { label: '待補件', color: '#f59e0b' },
+    info_submitted: { label: '補件完成待審核', color: '#f97316' },
     scheduled: { label: '已排程', color: '#8b5cf6' },
     dispatched: { label: '已派工', color: '#06b6d4' },
     in_progress: { label: '處理中', color: '#f97316' },
@@ -18,7 +19,8 @@ const STATUS_MAP = {
 
 const STATUS_TRANSITIONS = {
     new: ['need_more_info', 'scheduled', 'dispatched'],
-    need_more_info: ['new', 'scheduled', 'dispatched'],
+    need_more_info: ['new', 'info_submitted', 'scheduled', 'dispatched'],
+    info_submitted: ['need_more_info', 'scheduled', 'dispatched'],
     scheduled: ['dispatched'],
     dispatched: ['in_progress'],
     in_progress: ['done'],
@@ -48,6 +50,9 @@ export default function TicketDetail() {
     // 完工說明
     const [completionNote, setCompletionNote] = useState('')
     const [actualAmount, setActualAmount] = useState('')
+    // 狀態變更（dropdown 模式）
+    const [selectedStatus, setSelectedStatus] = useState('')
+    const [supplementNote, setSupplementNote] = useState('')
 
     const isAdmin = user?.role === 'admin'
     const isRepairTicket = ticket?.category != null
@@ -405,24 +410,82 @@ export default function TicketDetail() {
                             </div>
                         )}
 
-                        {/* 狀態變更：只顯示合法的下一步 */}
+                        {/* 狀態變更：dropdown + 儲存鍵 */}
                         <div style={{ marginBottom: '16px' }}>
                             <label style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '6px', display: 'block' }}>狀態變更</label>
-                            {allowedNext.length > 0 ? (
-                                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                    {allowedNext.map(s => {
-                                        const stInfo = STATUS_MAP[s]
-                                        return (
-                                            <button key={s} onClick={() => updateStatus(s)} disabled={saving}
-                                                className="btn btn-secondary"
-                                                style={{ fontSize: '12px', padding: '6px 12px', borderColor: stInfo.color, color: stInfo.color }}>
-                                                → {stInfo.label}
-                                            </button>
-                                        )
-                                    })}
-                                </div>
-                            ) : (
+                            {ticket.status === 'closed' ? (
                                 <div style={{ fontSize: '13px', color: '#9ca3af' }}>已結案，無法變更狀態</div>
+                            ) : (
+                                <>
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
+                                        <select
+                                            value={selectedStatus}
+                                            onChange={e => setSelectedStatus(e.target.value)}
+                                            style={{
+                                                flex: 1, padding: '10px 14px', borderRadius: '8px',
+                                                border: '1px solid #d1d5db', fontSize: '14px',
+                                                background: 'white',
+                                            }}
+                                        >
+                                            <option value="">— 選擇新狀態 —</option>
+                                            {Object.entries(STATUS_MAP).filter(([k]) =>
+                                                !['pending', 'processing', 'completed'].includes(k) && k !== ticket.status
+                                            ).map(([k, v]) => (
+                                                <option key={k} value={k}>{v.label}</option>
+                                            ))}
+                                        </select>
+                                        <button
+                                            onClick={() => {
+                                                if (!selectedStatus) return
+                                                const extra = {}
+                                                if (selectedStatus === 'need_more_info' && supplementNote) {
+                                                    extra.supplement_note = supplementNote
+                                                }
+                                                updateStatus(selectedStatus, extra)
+                                                setSelectedStatus('')
+                                                setSupplementNote('')
+                                            }}
+                                            disabled={!selectedStatus || saving}
+                                            className="btn btn-primary"
+                                            style={{ padding: '10px 20px', fontSize: '14px', whiteSpace: 'nowrap' }}
+                                        >
+                                            💾 儲存
+                                        </button>
+                                    </div>
+
+                                    {/* 待補件說明輸入框 */}
+                                    {selectedStatus === 'need_more_info' && (
+                                        <div style={{
+                                            padding: '12px', background: '#fffbeb', borderRadius: '8px',
+                                            border: '1px solid #fbbf24', marginBottom: '8px',
+                                        }}>
+                                            <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#92400e', display: 'block', marginBottom: '6px' }}>
+                                                📝 告知客戶需要補什麼（會透過 LINE 通知）
+                                            </label>
+                                            <textarea
+                                                value={supplementNote}
+                                                onChange={e => setSupplementNote(e.target.value)}
+                                                placeholder="例如：請補上漏水處的照片，以及確認地址樓層..."
+                                                rows={3}
+                                                style={{
+                                                    width: '100%', padding: '10px', borderRadius: '6px',
+                                                    border: '1px solid #fbbf24', fontSize: '14px',
+                                                    resize: 'vertical', boxSizing: 'border-box',
+                                                }}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {/* info_submitted 提醒 */}
+                                    {ticket.status === 'info_submitted' && (
+                                        <div style={{
+                                            padding: '10px 14px', background: '#fff7ed', borderRadius: '8px',
+                                            border: '1px solid #fb923c', fontSize: '13px', color: '#9a3412',
+                                        }}>
+                                            📥 客戶已完成補件，請審核後決定下一步
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </div>
 
