@@ -79,4 +79,5 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // LINE 客戶名冊
     Route::get('/line-customers', [LineCustomerController::class, 'index']);
+    Route::delete('/line-customers/{id}', [LineCustomerController::class, 'destroy']);
 });

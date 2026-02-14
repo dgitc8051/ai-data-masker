@@ -75,4 +75,16 @@ class LineCustomerController extends Controller
 
         return response()->json($customers);
     }
+
+    /**
+     * 管理員 API：刪除 LINE 客戶記錄（方便測試重新綁定）
+     * DELETE /api/line-customers/{id}
+     */
+    public function destroy($id)
+    {
+        $customer = LineCustomer::findOrFail($id);
+        $customer->delete();
+
+        return response()->json(['message' => '已刪除 LINE 客戶: ' . $customer->line_display_name]);
+    }
 }

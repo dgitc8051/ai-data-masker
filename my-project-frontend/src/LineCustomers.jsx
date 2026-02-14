@@ -29,6 +29,17 @@ export default function LineCustomers() {
         load()
     }
 
+    const handleDelete = async (id, name) => {
+        if (!confirm(`確定要刪除 LINE 客戶「${name}」？\n刪除後該用戶下次從 LINE 進入會重新註冊。`)) return
+        try {
+            await authFetch(`${API}/api/line-customers/${id}`, { method: 'DELETE' })
+            load()
+        } catch (err) {
+            console.error(err)
+            alert('刪除失敗')
+        }
+    }
+
     return (
         <div className="container">
             <h1 style={{ textAlign: 'center' }}>📱 LINE 客戶名冊</h1>
@@ -95,6 +106,7 @@ export default function LineCustomers() {
                                 <th style={thStyle}>電話</th>
                                 <th style={thStyle}>報修次數</th>
                                 <th style={thStyle}>最後訪問</th>
+                                <th style={thStyle}>操作</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -138,6 +150,15 @@ export default function LineCustomers() {
                                         {c.last_visited_at ? new Date(c.last_visited_at).toLocaleString('zh-TW', {
                                             month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
                                         }) : '—'}
+                                    </td>
+                                    <td style={tdStyle}>
+                                        <button
+                                            onClick={() => handleDelete(c.id, c.line_display_name)}
+                                            style={{
+                                                padding: '4px 10px', borderRadius: '6px', border: '1px solid #fca5a5',
+                                                background: '#fef2f2', color: '#dc2626', fontSize: '12px', cursor: 'pointer',
+                                            }}
+                                        >🗑 刪除</button>
                                     </td>
                                 </tr>
                             ))}
