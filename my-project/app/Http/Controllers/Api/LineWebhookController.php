@@ -72,19 +72,18 @@ class LineWebhookController extends Controller
     }
 
     /**
-     * 處理訊息事件（帳號綁定）
+     * 處理訊息事件（帳號綁定 + AI 智能引導）
      */
     private function handleMessage(string $lineUserId, array $event): void
     {
         $text = trim($event['message']['text'] ?? '');
+        $lineService = new \App\Services\LineNotifyService();
 
         // 綁定指令：「綁定 帳號 密碼」
         if (preg_match('/^綁定\s+(\S+)\s+(\S+)$/u', $text, $matches)) {
             $username = trim($matches[1]);
             $password = trim($matches[2]);
             $user = User::where('username', $username)->first();
-
-            $lineService = new \App\Services\LineNotifyService();
 
             if (!$user || !Hash::check($password, $user->password)) {
                 $lineService->pushMessage(
@@ -106,16 +105,110 @@ class LineWebhookController extends Controller
                 "之後的派工通知將會透過 LINE 推送給您。"
             );
             Log::info("LINE 帳號綁定成功: {$username} → {$lineUserId}");
-        } elseif (str_starts_with($text, '綁定')) {
-            // 格式不對時給提示
-            $lineService = new \App\Services\LineNotifyService();
+            return;
+        }
+
+        if (str_starts_with($text, '綁定')) {
             $lineService->pushMessage(
                 $lineUserId,
                 "⚠️ 格式錯誤\n\n" .
                 "正確格式：綁定 帳號 密碼\n" .
                 "例如：綁定 worker1 worker123"
             );
+            return;
         }
+
+        // === AI 智能引導 ===
+        $reply = $this->aiSmartGuide($text);
+        $lineService->pushMessage($lineUserId, $reply);
+    }
+
+    /**
+     * AI 智能引導：判斷用戶意圖，引導到對應功能
+     */
+    private function aiSmartGuide(string $userMessage): string
+    {
+        $frontendUrl = 'https://ai-data-masker-production-fda9.up.railway.app';
+        $apiKey = env('OPENAI_API_KEY', '');
+
+        if (empty($apiKey)) {
+            Log::warning('OpenAI API Key 未設定，使用預設回覆');
+            return $this->defaultReply($frontendUrl);
+        }
+
+        $systemPrompt = <<<PROMPT
+你是一個水電維修公司的 LINE 智能客服助理。你的工作是「理解客戶意圖」，然後「引導客戶到正確的功能頁面」。
+
+公司提供以下 6 個功能（對應 LINE 選單）：
+
+1. 用戶報修 → {$frontendUrl}/repair
+   用途：填寫維修單（水管、電路、冷氣、熱水器等）
+   
+2. 維修進度 → {$frontendUrl}/track
+   用途：用維修編號+手機查詢維修進度
+   
+3. 聯絡我們 → {$frontendUrl}/contact
+   用途：查看公司電話、地址、營業時間
+   
+4. 服務項目 → {$frontendUrl}/services
+   用途：查看我們提供的所有維修服務類別
+   
+5. 關於我們 → {$frontendUrl}/about
+   用途：了解公司資訊、服務理念
+
+6. 內部登入 → {$frontendUrl}/login
+   用途：員工/師傅登入後台（一般客戶不需要）
+
+回覆規則：
+- 用繁體中文、口語化、親切
+- 簡短回覆（不超過 100 字）
+- 一定要附上對應的連結
+- 如果不確定意圖，列出最可能的 2-3 個選項
+- 不要嘗試直接回答維修技術問題，引導到報修或聯絡我們
+- 結尾加上「也可以直接點選下方選單快速操作哦！👇」
+PROMPT;
+
+        try {
+            $response = \Illuminate\Support\Facades\Http::timeout(15)
+                ->withHeaders([
+                    'Authorization' => "Bearer {$apiKey}",
+                    'Content-Type' => 'application/json',
+                ])
+                ->post('https://api.openai.com/v1/chat/completions', [
+                    'model' => 'gpt-4o-mini',
+                    'messages' => [
+                        ['role' => 'system', 'content' => $systemPrompt],
+                        ['role' => 'user', 'content' => $userMessage],
+                    ],
+                    'temperature' => 0.7,
+                    'max_tokens' => 300,
+                ]);
+
+            $reply = $response->json('choices.0.message.content', '');
+
+            if (!empty($reply)) {
+                Log::info("AI 智能引導：「{$userMessage}」→ 已回覆");
+                return $reply;
+            }
+        } catch (\Exception $e) {
+            Log::warning('AI 智能引導失敗: ' . $e->getMessage());
+        }
+
+        // fallback
+        return $this->defaultReply($frontendUrl);
+    }
+
+    /**
+     * 預設回覆（AI 不可用時的 fallback）
+     */
+    private function defaultReply(string $frontendUrl): string
+    {
+        return "您好！我是智能客服助理 🤖\n\n"
+            . "請問需要什麼服務呢？\n\n"
+            . "🔧 報修填單：\n{$frontendUrl}/repair\n\n"
+            . "📋 查詢進度：\n{$frontendUrl}/track\n\n"
+            . "📞 聯絡我們：\n{$frontendUrl}/contact\n\n"
+            . "也可以直接點選下方選單快速操作哦！👇";
     }
 
     /**
