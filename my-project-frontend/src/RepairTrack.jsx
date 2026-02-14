@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 
 export default function RepairTrack() {
     const navigate = useNavigate()
-    const [phone, setPhone] = useState('')
+    const [phone, setPhone] = useState('09')
     const [ticketNo, setTicketNo] = useState('')
     const [tickets, setTickets] = useState(null)
     const [loading, setLoading] = useState(false)
@@ -85,12 +85,12 @@ export default function RepairTrack() {
                     <input
                         type="text" value={ticketNo}
                         onChange={e => setTicketNo(e.target.value)}
-                        placeholder="例如：TK-20260215-001"
+                        placeholder="例如：TK250215001"
                         style={{
                             width: '100%', padding: '12px 16px', borderRadius: '10px',
                             border: '1px solid rgba(255,255,255,0.15)', fontSize: '15px',
                             background: 'rgba(255,255,255,0.06)', color: '#fff',
-                            boxSizing: 'border-box', outline: 'none', fontFamily: 'monospace',
+                            boxSizing: 'border-box', outline: 'none', fontFamily: 'monospace', letterSpacing: '1px',
                             marginBottom: '14px',
                         }}
                     />
@@ -101,7 +101,7 @@ export default function RepairTrack() {
                     <input
                         type="tel" value={phone}
                         onChange={e => setPhone(e.target.value)}
-                        placeholder="例如：0912345678"
+                        placeholder="09xxxxxxxx"
                         style={{
                             width: '100%', padding: '12px 16px', borderRadius: '10px',
                             border: '1px solid rgba(255,255,255,0.15)', fontSize: '16px',

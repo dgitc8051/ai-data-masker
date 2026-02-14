@@ -40,7 +40,7 @@ export default function RepairForm() {
 
     // Step 2: 聯絡方式
     const [customerName, setCustomerName] = useState('')
-    const [phone, setPhone] = useState('')
+    const [phone, setPhone] = useState('09')
     const [city, setCity] = useState('')
     const [district, setDistrict] = useState('')
     const [addressDetail, setAddressDetail] = useState('')

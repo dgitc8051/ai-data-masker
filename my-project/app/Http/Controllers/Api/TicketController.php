@@ -78,13 +78,13 @@ class TicketController extends Controller
     {
         $user = $request->user();
 
-        // 產生工單編號
-        $today = now()->format('Ymd');
-        $lastTicket = Ticket::where('ticket_no', 'like', "TK-{$today}-%")
+        // 產生工單編號（短格式：TK250215001）
+        $today = now()->format('ymd'); // 2-digit year
+        $lastTicket = Ticket::where('ticket_no', 'like', "TK{$today}%")
             ->orderBy('ticket_no', 'desc')
             ->first();
         $nextNumber = $lastTicket ? (int) substr($lastTicket->ticket_no, -3) + 1 : 1;
-        $ticketNo = "TK-{$today}-" . str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
+        $ticketNo = "TK{$today}" . str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
 
         $isRepairMode = $request->has('category');
 
