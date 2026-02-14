@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext'
 import TW from './twAddress'
+import liff from '@line/liff'
 
 const CATEGORIES = [
     { value: '水管', label: '🔧 水管/馬桶', icon: '🚿' },
@@ -31,6 +32,38 @@ export default function RepairForm() {
     const [submitting, setSubmitting] = useState(false)
     const [workers, setWorkers] = useState([])
     const [successInfo, setSuccessInfo] = useState(null) // { ticketNo, phone }
+    const [lineUserId, setLineUserId] = useState('')
+    const [liffReady, setLiffReady] = useState(false)
+
+    // LIFF 初始化（強制 LINE 登入取得客戶 LINE ID）
+    useEffect(() => {
+        const liffId = import.meta.env.VITE_LIFF_ID
+        if (!liffId) {
+            console.warn('VITE_LIFF_ID 未設定，跳過 LIFF 初始化')
+            setLiffReady(true)
+            return
+        }
+        liff.init({ liffId })
+            .then(() => {
+                if (!liff.isLoggedIn()) {
+                    // 未登入 → 強制跳轉 LINE 登入
+                    liff.login({ redirectUri: window.location.href })
+                    return
+                }
+                // 已登入 → 取得 LINE User ID
+                liff.getProfile()
+                    .then(profile => {
+                        setLineUserId(profile.userId)
+                        console.log('LIFF LINE User ID:', profile.userId)
+                    })
+                    .catch(err => console.warn('LIFF getProfile 失敗:', err))
+                    .finally(() => setLiffReady(true))
+            })
+            .catch(err => {
+                console.warn('LIFF 初始化失敗:', err)
+                setLiffReady(true) // 失敗也繼續讓用戶報修
+            })
+    }, [])
 
     // Step 1: 故障資訊
     const [category, setCategory] = useState('')
@@ -93,6 +126,7 @@ export default function RepairForm() {
             formData.append('address', address)
             formData.append('preferred_time_slot', preferredTimeSlot)
             if (notes) formData.append('notes_internal', notes)
+            if (lineUserId) formData.append('customer_line_id', lineUserId)
             if (assignedUserIds.length > 0) {
                 assignedUserIds.forEach(id => formData.append('assigned_user_ids[]', id))
             }

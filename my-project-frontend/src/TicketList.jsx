@@ -116,7 +116,7 @@ export default function TicketList() {
                 padding: '4px 0',
             }}>
                 {Object.entries(STATUS_MAP).filter(([k]) =>
-                    ['all', 'new', 'need_more_info', 'scheduled', 'dispatched', 'done', 'closed'].includes(k)
+                    ['all', 'new', 'need_more_info', 'info_submitted', 'dispatched', 'time_proposed', 'in_progress', 'done', 'closed', 'cancelled'].includes(k)
                 ).map(([key, st]) => (
                     <button
                         key={key}

@@ -96,6 +96,7 @@ class TicketController extends Controller
                 'category' => $request->input('category'),
                 'customer_name' => $request->input('customer_name'),
                 'phone' => $request->input('phone'),
+                'customer_line_id' => $request->input('customer_line_id'),
                 'address' => $request->input('address'),
                 'description_raw' => $request->input('description'),
                 'preferred_time_slot' => $request->input('preferred_time_slot'),
