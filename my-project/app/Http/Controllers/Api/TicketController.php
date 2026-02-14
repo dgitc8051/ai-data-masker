@@ -207,12 +207,14 @@ class TicketController extends Controller
                     ->toArray();
 
                 if (!empty($adminLineIds)) {
+                    $frontendUrl = 'https://ai-data-masker-production-fda9.up.railway.app';
                     $msg = "📨 新報修單\n\n"
                         . "編號：{$ticket->ticket_no}\n"
                         . "類別：{$ticket->category}\n"
                         . "電話：{$ticket->phone}\n"
                         . "地址：{$ticket->address}\n"
                         . "說明：" . mb_substr($ticket->description_raw ?? '', 0, 50) . "\n\n"
+                        . "📋 查詢進度：\n{$frontendUrl}/track\n\n"
                         . "請至後台處理。";
 
                     foreach ($adminLineIds as $lineUserId) {
