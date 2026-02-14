@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Hash;
 
 class LineWebhookController extends Controller
 {
@@ -63,8 +64,9 @@ class LineWebhookController extends Controller
         $lineService->pushMessage(
             $lineUserId,
             "歡迎使用維修通知系統！\n\n" .
-            "請輸入您的帳號名稱來綁定通知：\n" .
-            "例如：綁定 worker1\n\n" .
+            "請輸入帳號和密碼來綁定通知：\n" .
+            "格式：綁定 帳號 密碼\n" .
+            "例如：綁定 worker1 worker123\n\n" .
             "綁定後，系統將透過 LINE 推送派工和完工通知。"
         );
     }
@@ -76,30 +78,43 @@ class LineWebhookController extends Controller
     {
         $text = trim($event['message']['text'] ?? '');
 
-        // 綁定指令：「綁定 worker1」
-        if (preg_match('/^綁定\s+(.+)$/u', $text, $matches)) {
+        // 綁定指令：「綁定 帳號 密碼」
+        if (preg_match('/^綁定\s+(\S+)\s+(\S+)$/u', $text, $matches)) {
             $username = trim($matches[1]);
+            $password = trim($matches[2]);
             $user = User::where('username', $username)->first();
 
             $lineService = new \App\Services\LineNotifyService();
 
-            if ($user) {
-                $user->update(['line_user_id' => $lineUserId]);
+            if (!$user || !Hash::check($password, $user->password)) {
                 $lineService->pushMessage(
                     $lineUserId,
-                    "✅ 綁定成功！\n\n" .
-                    "帳號：{$user->name}（{$user->username}）\n" .
-                    "角色：" . ($user->role === 'admin' ? '管理員' : '師傅') . "\n\n" .
-                    "之後的派工通知將會透過 LINE 推送給您。"
+                    "❌ 帳號或密碼錯誤\n" .
+                    "請確認後再試一次。\n\n" .
+                    "格式：綁定 帳號 密碼"
                 );
-                Log::info("LINE 帳號綁定成功: {$username} → {$lineUserId}");
-            } else {
-                $lineService->pushMessage(
-                    $lineUserId,
-                    "❌ 找不到帳號「{$username}」\n" .
-                    "請確認帳號名稱是否正確後再試一次。"
-                );
+                Log::warning("LINE 綁定失敗（帳密錯誤）: {$username}");
+                return;
             }
+
+            $user->update(['line_user_id' => $lineUserId]);
+            $lineService->pushMessage(
+                $lineUserId,
+                "✅ 綁定成功！\n\n" .
+                "帳號：{$user->name}（{$user->username}）\n" .
+                "角色：" . ($user->role === 'admin' ? '管理員' : '師傅') . "\n\n" .
+                "之後的派工通知將會透過 LINE 推送給您。"
+            );
+            Log::info("LINE 帳號綁定成功: {$username} → {$lineUserId}");
+        } elseif (str_starts_with($text, '綁定')) {
+            // 格式不對時給提示
+            $lineService = new \App\Services\LineNotifyService();
+            $lineService->pushMessage(
+                $lineUserId,
+                "⚠️ 格式錯誤\n\n" .
+                "正確格式：綁定 帳號 密碼\n" .
+                "例如：綁定 worker1 worker123"
+            );
         }
     }
 
