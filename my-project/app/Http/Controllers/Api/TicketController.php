@@ -208,8 +208,8 @@ class TicketController extends Controller
 
         $ticket->load('assignedUsers:id,name');
 
-        // LINE 推播通知管理員（僅公開報修時）
-        if ($isRepairMode && !$user) {
+        // LINE 推播通知管理員（所有報修單都通知）
+        if ($isRepairMode) {
             try {
                 $lineService = new LineNotifyService();
                 $adminLineIds = User::where('role', 'admin')
@@ -235,24 +235,24 @@ class TicketController extends Controller
             } catch (\Exception $e) {
                 \Log::warning('LINE 新報修通知失敗: ' . $e->getMessage());
             }
+        }
 
-            // 同時通知客戶：報修已收到
-            if ($ticket->customer_line_id) {
-                try {
-                    $lineService = $lineService ?? new LineNotifyService();
-                    $frontendUrl = env('FRONTEND_URL', 'https://ai-data-masker-production-fda9.up.railway.app');
-                    $lineService->pushMessage(
-                        $ticket->customer_line_id,
-                        "✅ 您的報修已成功送出！\n\n"
-                        . "📋 編號：{$ticket->ticket_no}\n"
-                        . "📌 類別：{$ticket->category}\n"
-                        . "📍 地址：{$ticket->address}\n\n"
-                        . "我們將儘速為您處理，狀態有更新時會再通知您。\n\n"
-                        . "📋 查詢進度：\n{$frontendUrl}/track"
-                    );
-                } catch (\Exception $e) {
-                    \Log::warning('LINE 客戶報修確認通知失敗: ' . $e->getMessage());
-                }
+        // 通知客戶：報修已收到（不受 $user 限制，只要有 customer_line_id 就通知）
+        if ($isRepairMode && $ticket->customer_line_id) {
+            try {
+                $lineService = new LineNotifyService();
+                $frontendUrl = env('FRONTEND_URL', 'https://ai-data-masker-production-fda9.up.railway.app');
+                $lineService->pushMessage(
+                    $ticket->customer_line_id,
+                    "✅ 您的報修已成功送出！\n\n"
+                    . "📋 編號：{$ticket->ticket_no}\n"
+                    . "📌 類別：{$ticket->category}\n"
+                    . "📍 地址：{$ticket->address}\n\n"
+                    . "我們將儘速為您處理，狀態有更新時會再通知您。\n\n"
+                    . "📋 查詢進度：\n{$frontendUrl}/track"
+                );
+            } catch (\Exception $e) {
+                \Log::warning('LINE 客戶報修確認通知失敗: ' . $e->getMessage());
             }
         }
 
