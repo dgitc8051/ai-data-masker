@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\LineWebhookController;
 // === 公開路由 ===
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/repair-tickets', [TicketController::class, 'store']); // 公開報修建票
+Route::get('/tickets/track', [TicketController::class, 'trackByPhone']); // 公開追蹤
 Route::post('/line/webhook', [LineWebhookController::class, 'webhook']); // LINE Webhook
 
 // === 需要登入的路由 ===

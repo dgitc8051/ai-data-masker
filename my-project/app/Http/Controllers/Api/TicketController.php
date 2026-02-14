@@ -470,6 +470,33 @@ class TicketController extends Controller
         ], 201);
     }
 
+    /**
+     * 公開：根據手機號碼查詢工單進度
+     * GET /api/tickets/track?phone=0912345678
+     */
+    public function trackByPhone(Request $request)
+    {
+        $phone = $request->input('phone', '');
+        if (strlen($phone) < 8) {
+            return response()->json(['message' => '請輸入完整的手機號碼'], 422);
+        }
+
+        $tickets = Ticket::where('phone', $phone)
+            ->latest()
+            ->limit(20)
+            ->get(['id', 'ticket_no', 'category', 'title', 'status', 'created_at', 'completed_at', 'description_raw']);
+
+        // 只回傳公開安全的欄位
+        $tickets->each(function ($t) {
+            $t->makeHidden(['description_raw']);
+            $t->description = $t->description_raw ? mb_substr($t->description_raw, 0, 50) : '';
+        });
+
+        return response()->json([
+            'tickets' => $tickets,
+        ]);
+    }
+
     // === 遮罩工具 ===
 
     /** 姓名遮罩：王大明 → 王先生/王小姐 */

@@ -4,12 +4,17 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import './index.css'
 import { AuthProvider, useAuth } from './AuthContext'
 import Login from './Login.jsx'
+import HomePage from './HomePage.jsx'
 import TicketList from './TicketList.jsx'
 import TicketCreate from './TicketCreate.jsx'
 import TicketDetail from './TicketDetail.jsx'
 import CsvMask from './CsvMask.jsx'
 import UserManage from './UserManage.jsx'
 import RepairForm from './RepairForm.jsx'
+import RepairTrack from './RepairTrack.jsx'
+import ContactPage from './ContactPage.jsx'
+import ServicesPage from './ServicesPage.jsx'
+import AboutPage from './AboutPage.jsx'
 
 // 未登入 → 跳轉登入頁
 function RequireAuth({ children }) {
@@ -31,19 +36,25 @@ function AppRoutes() {
 
   return (
     <Routes>
-      <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
+      {/* 公開頁面 */}
+      <Route path="/home" element={<HomePage />} />
       <Route path="/repair" element={<RepairForm />} />
+      <Route path="/track" element={<RepairTrack />} />
+      <Route path="/contact" element={<ContactPage />} />
+      <Route path="/services" element={<ServicesPage />} />
+      <Route path="/about" element={<AboutPage />} />
+      <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
 
+      {/* 需要登入 */}
       <Route path="/" element={<RequireAuth><TicketList /></RequireAuth>} />
       <Route path="/tickets/:id" element={<RequireAuth><TicketDetail /></RequireAuth>} />
 
       {/* 管理員專用 */}
-      <Route path="/repair" element={<RequireAuth><AdminOnly><RepairForm /></AdminOnly></RequireAuth>} />
       <Route path="/create" element={<RequireAuth><AdminOnly><TicketCreate /></AdminOnly></RequireAuth>} />
       <Route path="/csv" element={<RequireAuth><AdminOnly><CsvMask /></AdminOnly></RequireAuth>} />
       <Route path="/users" element={<RequireAuth><AdminOnly><UserManage /></AdminOnly></RequireAuth>} />
 
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<Navigate to="/home" replace />} />
     </Routes>
   )
 }
