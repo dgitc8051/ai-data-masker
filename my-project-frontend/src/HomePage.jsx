@@ -4,7 +4,7 @@ import { useAuth } from './AuthContext'
 const menuItems = [
     { icon: '🔧', label: '用戶報修', desc: '線上填寫維修需求', to: '/repair', color: '#ef4444' },
     { icon: '📋', label: '維修進度', desc: '查詢工單處理狀態', to: '/track', color: '#3b82f6' },
-    { icon: '📞', label: '關於與聯絡', desc: '公司簡介・聯繫方式', to: '/contact', color: '#10b981' },
+    { icon: '📞', label: '聯絡我們', desc: '電話・地址・營業時間', to: '/contact', color: '#10b981' },
     { icon: '👤', label: '內部登入', desc: '員工管理系統入口', to: '/login', color: '#8b5cf6' },
     { icon: '🛠️', label: '服務項目', desc: '專業維修服務一覽', to: '/services', color: '#f59e0b' },
     { icon: '💰', label: '費用參考', desc: '檢測費・維修行情', to: '/pricing', color: '#6366f1' },

@@ -70,10 +70,10 @@ $richMenu = [
             'bounds' => ['x' => 833, 'y' => 843, 'width' => 834, 'height' => 843],
             'action' => ['type' => 'uri', 'label' => '服務項目', 'uri' => "$FRONTEND_URL/services"],
         ],
-        // 右下 - 關於我們
+        // 右下 - 費用參考
         [
             'bounds' => ['x' => 1667, 'y' => 843, 'width' => 833, 'height' => 843],
-            'action' => ['type' => 'uri', 'label' => '關於我們', 'uri' => "$FRONTEND_URL/about"],
+            'action' => ['type' => 'uri', 'label' => '費用參考', 'uri' => "$FRONTEND_URL/pricing"],
         ],
     ],
 ];
