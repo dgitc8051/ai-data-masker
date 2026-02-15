@@ -588,6 +588,16 @@ class TicketController extends Controller
                     $lineService->pushMessage($ticket->customer_line_id, $msg);
                 }
             }
+
+            // 結案 → 通知客戶
+            if ($newStatus === 'closed' && $ticket->customer_line_id) {
+                $lineService->pushMessage(
+                    $ticket->customer_line_id,
+                    "🎊 您的維修單 {$ticket->ticket_no} 已結案！\n\n"
+                    . "感謝您使用我們的服務，如有任何問題歡迎隨時聯繫。\n"
+                    . "祝您生活愉快！"
+                );
+            }
         } catch (\Exception $e) {
             \Log::warning('LINE 狀態通知失敗: ' . $e->getMessage());
         }
@@ -625,7 +635,7 @@ class TicketController extends Controller
             $ticket->assignedUsers()->attach($user->id);
         }
 
-        // LINE 通知管理員
+        // LINE 通知管理員 + 客戶
         try {
             $lineService = new LineNotifyService();
             $adminLineIds = User::where('role', 'admin')
@@ -636,6 +646,16 @@ class TicketController extends Controller
                 $adminLineIds,
                 "📥 {$ticket->ticket_no} 已接案\n師傅：{$user->name}"
             );
+
+            // 通知客戶：師傅已接案
+            if ($ticket->customer_line_id) {
+                $lineService->pushMessage(
+                    $ticket->customer_line_id,
+                    "👷 您的維修單 {$ticket->ticket_no} 已有師傅接案！\n\n"
+                    . "負責師傅：{$user->name}\n"
+                    . "師傅將盡快與您聯繫安排時間。"
+                );
+            }
         } catch (\Exception $e) {
             \Log::warning('LINE 接案通知失敗: ' . $e->getMessage());
         }
@@ -674,7 +694,7 @@ class TicketController extends Controller
         }
         $ticket->save();
 
-        // LINE 通知管理員
+        // LINE 通知管理員 + 客戶
         try {
             $lineService = new LineNotifyService();
             $adminLineIds = User::where('role', 'admin')
@@ -685,6 +705,18 @@ class TicketController extends Controller
                 $adminLineIds,
                 "💰 {$ticket->ticket_no} 師傅報價\n金額：\${$ticket->quoted_amount}\n師傅：{$user->name}"
             );
+
+            // 通知客戶：有報價了，請確認
+            if ($ticket->customer_line_id) {
+                $frontendUrl = env('FRONTEND_URL', 'https://ai-data-masker-production-fda9.up.railway.app');
+                $lineService->pushMessage(
+                    $ticket->customer_line_id,
+                    "💰 您的維修單 {$ticket->ticket_no} 已有報價！\n\n"
+                    . "報價金額：\${$ticket->quoted_amount}\n\n"
+                    . "請點擊以下連結確認報價：\n{$frontendUrl}/track\n"
+                    . "輸入維修編號和手機號碼後即可確認。"
+                );
+            }
         } catch (\Exception $e) {
             \Log::warning('LINE 報價通知失敗: ' . $e->getMessage());
         }
@@ -1095,6 +1127,16 @@ class TicketController extends Controller
             if (!empty($workerLineIds)) {
                 $lineService->pushToMultiple($workerLineIds, $msg);
             }
+
+            // 通知客戶：確認成功
+            if ($ticket->customer_line_id) {
+                $lineService->pushMessage(
+                    $ticket->customer_line_id,
+                    "✅ 您的維修單 {$ticket->ticket_no} 時段確認成功！\n\n"
+                    . "確認時段：{$selectedSlot}\n\n"
+                    . "師傅將在約定時間到場，請確保有人在場。"
+                );
+            }
         } catch (\Exception $e) {
             \Log::warning('LINE 確認時段通知失敗: ' . $e->getMessage());
         }
@@ -1277,6 +1319,15 @@ class TicketController extends Controller
                 ->pluck('line_user_id')
                 ->toArray();
             $lineService->pushToMultiple($adminLineIds, $msg);
+
+            // 通知客戶：師傅更換中
+            if ($ticket->customer_line_id) {
+                $lineService->pushMessage(
+                    $ticket->customer_line_id,
+                    "📋 您的維修單 {$ticket->ticket_no}\n原師傅因故無法接手，我們正在為您重新安排師傅。\n\n"
+                    . "造成不便敬請見諒，安排完成後將再通知您。"
+                );
+            }
         } catch (\Exception $e) {
             \Log::warning('LINE 師傅取消接單通知失敗: ' . $e->getMessage());
         }
