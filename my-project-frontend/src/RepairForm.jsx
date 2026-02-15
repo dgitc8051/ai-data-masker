@@ -405,8 +405,8 @@ export default function RepairForm() {
             )}
 
             <div style={{ marginBottom: '16px', display: 'flex', gap: '10px' }}>
-                {isLoggedIn && <Link to="/" className="btn btn-secondary">← 回到首頁</Link>}
-                {!isLoggedIn && <Link to="/login" className="btn btn-secondary">🔒 客服登入</Link>}
+                <Link to="/home" className="btn btn-secondary">← 回首頁</Link>
+                {isLoggedIn && <Link to="/" className="btn btn-secondary">📋 工單列表</Link>}
             </div>
 
             {/* 步驟指示器 */}

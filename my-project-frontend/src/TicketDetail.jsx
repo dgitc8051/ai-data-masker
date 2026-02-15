@@ -88,12 +88,30 @@ export default function TicketDetail() {
     // 更新狀態
     const updateStatus = async (newStatus, extra = {}) => {
         setSaving(true)
-        await authFetch(`${API}/api/tickets/${id}/status`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: newStatus, ...extra }),
-        })
-        fetchTicket()
+        try {
+            const res = await authFetch(`${API}/api/tickets/${id}/status`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: newStatus, ...extra }),
+            })
+            if (res.ok) {
+                const msgs = {
+                    need_more_info: '✅ 已退回給客戶補件，LINE 通知已送出',
+                    cancelled: '✅ 工單已取消',
+                    dispatched: '✅ 已派工',
+                    in_progress: '✅ 狀態已更新為施工中',
+                    done: '✅ 已標記為完工',
+                    closed: '✅ 工單已結案',
+                }
+                alert(msgs[newStatus] || `✅ 狀態已更新為「${newStatus}」`)
+            } else {
+                const data = await res.json().catch(() => ({}))
+                alert(`❌ 更新失敗：${data.message || '未知錯誤'}`)
+            }
+            fetchTicket()
+        } catch (err) {
+            alert(`❌ 連線錯誤：${err.message}`)
+        }
         setSaving(false)
     }
 

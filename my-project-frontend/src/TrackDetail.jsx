@@ -55,6 +55,7 @@ export default function TrackDetail() {
     }, [id]) // eslint-disable-line
 
     const fetchDetail = async () => {
+        setError('')  // 清除舊錯誤
         try {
             const params = line_user_id
                 ? new URLSearchParams({ line_user_id })
@@ -91,8 +92,9 @@ export default function TrackDetail() {
             } else {
                 setError(data.message || '查詢失敗')
             }
-        } catch {
-            setError('網路連線錯誤')
+        } catch (err) {
+            // 只在沒有 ticket 資料時顯示網路錯誤（避免重新整理時覆蓋已載入的資料）
+            setError(prev => prev || (ticket ? '' : '網路連線錯誤，請重試'))
         } finally {
             setLoading(false)
         }
@@ -245,10 +247,16 @@ export default function TrackDetail() {
             <LiffCloseButton />
             <div style={{ maxWidth: '480px', margin: '0 auto' }}>
                 {/* Header */}
-                <Link to="/track" style={{
-                    color: 'rgba(255,255,255,0.5)', fontSize: '13px',
-                    textDecoration: 'none', display: 'inline-block', marginBottom: '16px',
-                }}>← 返回查詢</Link>
+                <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
+                    <Link to="/track" style={{
+                        color: 'rgba(255,255,255,0.5)', fontSize: '13px',
+                        textDecoration: 'none',
+                    }}>← 返回查詢</Link>
+                    <Link to="/home" style={{
+                        color: 'rgba(255,255,255,0.5)', fontSize: '13px',
+                        textDecoration: 'none',
+                    }}>🏠 首頁</Link>
+                </div>
 
                 {/* Status Banner */}
                 <div style={{
