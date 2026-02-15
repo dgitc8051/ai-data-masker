@@ -18,7 +18,6 @@ const TIME_SLOTS = [
     '下午（13:00-17:00）',
     '晚上（18:00-21:00）',
     '週末皆可',
-    '盡快處理',
 ]
 
 export default function RepairForm() {
@@ -128,6 +127,7 @@ export default function RepairForm() {
 
     // Step 1: 故障資訊
     const [category, setCategory] = useState('')
+    const [customDevice, setCustomDevice] = useState('')
     const [description, setDescription] = useState('')
     const [photos, setPhotos] = useState([])     // File objects
     const [previews, setPreviews] = useState([])  // preview URLs
@@ -210,8 +210,9 @@ export default function RepairForm() {
         addDebug(`photos: ${photos.length}, sizes: ${photos.map(f => `${(f.size / 1024).toFixed(0)}KB`).join(',') || 'none'}`)
         try {
             const formData = new FormData()
-            formData.append('category', category)
-            formData.append('title', `${category}報修 - ${address.substring(0, 20)}`)
+            const finalCategory = category === '其他' && customDevice ? `其他（${customDevice}）` : category
+            formData.append('category', finalCategory)
+            formData.append('title', `${finalCategory}報修 - ${address.substring(0, 20)}`)
             formData.append('description', description)
             formData.append('customer_name', customerName)
             formData.append('phone', `09${phone}`)
@@ -469,6 +470,20 @@ export default function RepairForm() {
                         </div>
                     </div>
 
+                    {/* 其他設備自訂輸入 */}
+                    {category === '其他' && (
+                        <div className="form-group">
+                            <label>設備名稱 *</label>
+                            <input
+                                type="text"
+                                className="form-input"
+                                placeholder="請輸入設備名稱，例如：電視、洗衣機..."
+                                value={customDevice}
+                                onChange={e => setCustomDevice(e.target.value)}
+                            />
+                        </div>
+                    )}
+
                     {/* 問題描述 */}
                     <div className="form-group">
                         <label>問題描述 *</label>
@@ -667,36 +682,7 @@ export default function RepairForm() {
                             value={notes} onChange={e => setNotes(e.target.value)} />
                     </div>
 
-                    {/* 指派師傅 */}
-                    {workers.length > 0 && (
-                        <div className="form-group">
-                            <label>指派師傅 <span style={{ color: '#9ca3af', fontSize: '12px' }}>（不選 = 所有師傅可見）</span></label>
-                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                                {workers.map(w => (
-                                    <label key={w.id} style={{
-                                        display: 'flex', alignItems: 'center', gap: '6px',
-                                        padding: '8px 16px', borderRadius: '20px', cursor: 'pointer',
-                                        fontSize: '13px', transition: 'all 0.2s',
-                                        background: assignedUserIds.includes(w.id) ? '#4f46e5' : '#f3f4f6',
-                                        color: assignedUserIds.includes(w.id) ? 'white' : '#374151',
-                                        border: assignedUserIds.includes(w.id) ? '1px solid #4f46e5' : '1px solid #e5e7eb',
-                                    }}>
-                                        <input type="checkbox" style={{ display: 'none' }}
-                                            checked={assignedUserIds.includes(w.id)}
-                                            onChange={() => {
-                                                setAssignedUserIds(prev =>
-                                                    prev.includes(w.id)
-                                                        ? prev.filter(id => id !== w.id)
-                                                        : [...prev, w.id]
-                                                )
-                                            }}
-                                        />
-                                        {assignedUserIds.includes(w.id) ? '✓ ' : ''}{w.name}
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
-                    )}
+
 
                     <div style={{ display: 'flex', gap: '8px', marginTop: '20px' }}>
                         <button onClick={() => setStep(2)} className="btn btn-secondary">← 上一步</button>

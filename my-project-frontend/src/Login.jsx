@@ -31,7 +31,7 @@ export default function Login() {
                 background: 'white', borderRadius: '16px', padding: '40px',
                 boxShadow: '0 20px 60px rgba(0,0,0,0.3)', width: '100%', maxWidth: '400px',
             }}>
-                <h1 style={{ textAlign: 'center', marginBottom: '8px', fontSize: '24px' }}>🔐 AI 資料遮罩系統</h1>
+                <h1 style={{ textAlign: 'center', marginBottom: '8px', fontSize: '24px' }}>🔐 工單系統</h1>
                 <p style={{ textAlign: 'center', color: '#6b7280', marginBottom: '28px', fontSize: '14px' }}>請登入以繼續</p>
 
                 <form onSubmit={handleSubmit}>

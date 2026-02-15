@@ -32,7 +32,7 @@ export default function ContactPage() {
                     { icon: '📍', title: '服務地址', content: '台北市大安區忠孝東路三段 123 號', sub: '近捷運忠孝復興站' },
                     { icon: '🕐', title: '營業時間', content: '週一至週六 08:00 - 20:00', sub: '週日及國定假日休息' },
                     { icon: '📧', title: 'Email', content: 'service@repair-demo.com', sub: '工作日 24 小時內回覆' },
-                    { icon: '💬', title: 'LINE 官方帳號', content: '@repair-demo', sub: '加好友享線上報修' },
+                    { icon: '💬', title: 'LINE 官方帳號', content: '@962zuxtq', sub: '加好友享線上報修' },
                 ].map((item, i) => (
                     <div key={i} style={{
                         background: 'rgba(255,255,255,0.06)', borderRadius: '14px',
@@ -59,17 +59,7 @@ export default function ContactPage() {
                     </div>
                 ))}
 
-                {/* Map placeholder */}
-                <div style={{
-                    background: 'rgba(255,255,255,0.06)', borderRadius: '14px',
-                    padding: '40px 20px', marginTop: '20px', textAlign: 'center',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                }}>
-                    <div style={{ fontSize: '32px', marginBottom: '8px' }}>🗺️</div>
-                    <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', margin: 0 }}>
-                        地圖功能開發中
-                    </p>
-                </div>
+
             </div>
         </div>
     )

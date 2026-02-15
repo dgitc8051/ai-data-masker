@@ -277,6 +277,35 @@ export default function TicketDetail() {
                             {ticket.preferred_time_slot && (
                                 <div style={rowStyle}><span style={labelStyle}>偏好時段</span><span>{ticket.preferred_time_slot}</span></div>
                             )}
+                            <div style={rowStyle}>
+                                <span style={labelStyle}>處理優先權</span>
+                                <span style={{ display: 'flex', gap: '6px' }}>
+                                    {[
+                                        { value: 'high', label: '🔴 高', bg: '#fef2f2', border: '#fca5a5', color: '#dc2626' },
+                                        { value: 'medium', label: '🟡 中', bg: '#fffbeb', border: '#fcd34d', color: '#d97706' },
+                                        { value: 'low', label: '🟢 低', bg: '#f0fdf4', border: '#86efac', color: '#16a34a' },
+                                    ].map(p => (
+                                        <button key={p.value}
+                                            onClick={async () => {
+                                                await authFetch(`${API}/api/tickets/${id}`, {
+                                                    method: 'PATCH',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({ priority: p.value }),
+                                                })
+                                                fetchTicket()
+                                            }}
+                                            style={{
+                                                padding: '4px 12px', borderRadius: '12px', fontSize: '12px',
+                                                fontWeight: ticket.priority === p.value ? 'bold' : 'normal',
+                                                background: ticket.priority === p.value ? p.bg : '#f9fafb',
+                                                border: `1.5px solid ${ticket.priority === p.value ? p.border : '#e5e7eb'}`,
+                                                color: ticket.priority === p.value ? p.color : '#9ca3af',
+                                                cursor: 'pointer', transition: 'all 0.2s',
+                                            }}
+                                        >{p.label}</button>
+                                    ))}
+                                </span>
+                            </div>
                             {ticket.scheduled_at && (
                                 <div style={rowStyle}><span style={labelStyle}>排程時間</span><span style={{ color: '#4f46e5', fontWeight: 'bold' }}>{new Date(ticket.scheduled_at).toLocaleString('zh-TW')}</span></div>
                             )}

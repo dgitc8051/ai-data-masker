@@ -301,7 +301,7 @@ export default function TrackDetail() {
                                 { key: 'customer_name', label: '姓名', type: 'text' },
                                 { key: 'category', label: '報修類別', type: 'select', options: ['水管', '電路', '冷氣', '熱水器', '其他'] },
                                 { key: 'address', label: '服務地址', type: 'text' },
-                                { key: 'preferred_time_slot', label: '偏好時段', type: 'select', options: ['上午（09:00-12:00）', '下午（13:00-17:00）', '晚上（18:00-21:00）', '週末皆可', '盡快處理'] },
+                                { key: 'preferred_time_slot', label: '偏好時段', type: 'select', options: ['上午（09:00-12:00）', '下午（13:00-17:00）', '晚上（18:00-21:00）', '週末皆可'] },
                             ].map(field => (
                                 <div key={field.key}>
                                     <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', display: 'block', marginBottom: '4px' }}>
@@ -339,14 +339,7 @@ export default function TrackDetail() {
                                 />
                             </div>
 
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#fff', fontSize: '14px' }}>
-                                <input
-                                    type="checkbox"
-                                    checked={editForm.is_urgent || false}
-                                    onChange={e => setEditForm({ ...editForm, is_urgent: e.target.checked })}
-                                />
-                                🔴 緊急件
-                            </label>
+
 
                             {/* ===== 照片管理 ===== */}
                             <div>

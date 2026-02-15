@@ -969,26 +969,12 @@ class TicketController extends Controller
         $ticket->status = 'info_submitted';
         $ticket->save();
 
-        // 通知管理員
+        // 通知管理員（背景執行，避免 LIFF timeout）
         try {
-            $lineService = new LineNotifyService();
-            $adminLineIds = User::where('role', 'admin')
-                ->whereNotNull('line_user_id')
-                ->pluck('line_user_id')
-                ->toArray();
-
-            if (!empty($adminLineIds)) {
-                $lineService->pushToMultiple(
-                    $adminLineIds,
-                    "📥 客戶已補件\n\n"
-                    . "編號：{$ticket->ticket_no}\n"
-                    . "類別：{$ticket->category}\n"
-                    . "說明：" . mb_substr($ticket->description_raw ?? '', 0, 50) . "\n\n"
-                    . "請至後台審核。"
-                );
-            }
+            $artisan = base_path('artisan');
+            exec("php {$artisan} notify:supplement {$ticket->id} > /dev/null 2>&1 &");
         } catch (\Exception $e) {
-            \Log::warning('LINE 補件通知失敗: ' . $e->getMessage());
+            \Log::warning('啟動補件通知背景程序失敗: ' . $e->getMessage());
         }
 
         return response()->json([
@@ -1197,7 +1183,7 @@ class TicketController extends Controller
             return response()->json(['message' => '找不到此工單，或驗證資訊不符'], 404);
         }
 
-        $cancelable = ['new', 'dispatched', 'time_proposed', 'in_progress'];
+        $cancelable = ['new', 'need_more_info', 'info_submitted', 'dispatched', 'time_proposed', 'in_progress'];
         if (!in_array($ticket->status, $cancelable)) {
             return response()->json(['message' => '此工單目前無法取消'], 422);
         }

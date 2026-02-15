@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Rich Menu Generator</title>
+</head>
+
+<body>
+    <canvas id="canvas" width="2500" height="1686"></canvas>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const W = 2500, H = 1686;
+        const cols = 3, rows = 2;
+        const cellW = Math.floor(W / cols), cellH = Math.floor(H / rows);
+
+        // Background gradient
+        const grad = ctx.createLinearGradient(0, 0, W, H);
+        grad.addColorStop(0, '#1e3a5f');
+        grad.addColorStop(1, '#0f2439');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, W, H);
+
+        // Cell data
+        const cells = [
+            { icon: '🔧', text: '我要報修' },
+            { icon: '📋', text: '查詢進度' },
+            { icon: '📞', text: '聯絡客服' },
+            { icon: '🔐', text: '管理後台' },
+            { icon: '🛠️', text: '服務介紹' },
+            { icon: '💰', text: '收費標準' },
+        ];
+
+        // Draw each cell
+        cells.forEach((cell, i) => {
+            const col = i % cols;
+            const row = Math.floor(i / cols);
+            const x = col * cellW;
+            const y = row * cellH;
+
+            // Cell background with subtle gradient
+            const cellGrad = ctx.createLinearGradient(x, y, x + cellW, y + cellH);
+            cellGrad.addColorStop(0, 'rgba(255,255,255,0.06)');
+            cellGrad.addColorStop(1, 'rgba(255,255,255,0.02)');
+            ctx.fillStyle = cellGrad;
+            ctx.fillRect(x + 2, y + 2, cellW - 4, cellH - 4);
+
+            // Icon (large, 70% of cell)
+            const iconSize = Math.floor(cellH * 0.38);
+            ctx.font = `${iconSize}px serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(cell.icon, x + cellW / 2, y + cellH * 0.38);
+
+            // Text label (bold white)
+            const textSize = Math.floor(cellH * 0.12);
+            ctx.font = `bold ${textSize}px "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif`;
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(cell.text, x + cellW / 2, y + cellH * 0.72);
+        });
+
+        // Grid lines
+        ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+        ctx.lineWidth = 2;
+        // Vertical lines
+        for (let c = 1; c < cols; c++) {
+            ctx.beginPath();
+            ctx.moveTo(c * cellW, 0);
+            ctx.lineTo(c * cellW, H);
+            ctx.stroke();
+        }
+        // Horizontal line
+        ctx.beginPath();
+        ctx.moveTo(0, cellH);
+        ctx.lineTo(W, cellH);
+        ctx.stroke();
+
+        // Download
+        const link = document.createElement('a');
+        link.download = 'rich_menu.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        document.body.innerHTML = '<h1>✅ rich_menu.png downloaded!</h1><p>Copy it to my-project/storage/rich_menu.png</p>';
+    </script>
+</body>
+
+</html>
