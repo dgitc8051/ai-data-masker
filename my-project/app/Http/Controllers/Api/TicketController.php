@@ -86,6 +86,18 @@ class TicketController extends Controller
 
         $user = $request->user();
 
+        // 驗證附件大小（單檔最大 10MB）
+        if ($request->hasFile('attachments')) {
+            foreach ($request->file('attachments') as $file) {
+                $sizeMB = round($file->getSize() / 1024 / 1024, 1);
+                if ($file->getSize() > 10 * 1024 * 1024) {
+                    return response()->json([
+                        'message' => "照片 {$file->getClientOriginalName()} 太大（{$sizeMB}MB），請壓縮到 10MB 以下再上傳",
+                    ], 422);
+                }
+            }
+        }
+
         // 產生工單編號（短格式：TK250215001）
         $today = now()->format('ymd'); // 2-digit year
         $lastTicket = Ticket::where('ticket_no', 'like', "TK{$today}%")
