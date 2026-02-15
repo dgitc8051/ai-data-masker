@@ -22,6 +22,7 @@ const statusSteps = ['new', 'dispatched', 'in_progress', 'done', 'closed']
 export default function TrackDetail() {
     const { id } = useParams()
     const location = useLocation()
+    const API = import.meta.env.VITE_API_URL
     const { phone, ticketNo, line_user_id } = location.state || {}
 
     const [ticket, setTicket] = useState(null)
@@ -344,48 +345,46 @@ export default function TrackDetail() {
                         <div style={{ display: 'grid', gap: '12px' }}>
                             {[
                                 { key: 'customer_name', label: '姓名', type: 'text' },
-                                { key: 'category', label: '報修類別', type: 'select', options: ['水管', '電路', '冷氣', '熱水器', '其他'] },
                                 { key: 'address', label: '服務地址', type: 'text' },
                             ].map(field => (
                                 <div key={field.key}>
                                     <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', display: 'block', marginBottom: '4px' }}>
                                         {field.label}
                                     </label>
-                                    {field.type === 'select' ? (
-                                        <select
-                                            value={editForm[field.key] || ''}
-                                            onChange={e => setEditForm({ ...editForm, [field.key]: e.target.value })}
-                                            style={inputStyle}
-                                        >
-                                            <option value="">請選擇</option>
-                                            {field.options.map(o => <option key={o} value={o}>{o}</option>)}
-                                        </select>
-                                    ) : (
-                                        <input
-                                            type="text"
-                                            value={editForm[field.key] || ''}
-                                            onChange={e => setEditForm({ ...editForm, [field.key]: e.target.value })}
-                                            style={inputStyle}
-                                        />
-                                    )}
-                                </div>
-                            ))}
-
-                            {/* 其他設備自訂輸入 */}
-                            {(editForm.category === '其他' || (editForm.category && editForm.category.startsWith('其他'))) && (
-                                <div>
-                                    <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', display: 'block', marginBottom: '4px' }}>
-                                        設備名稱
-                                    </label>
                                     <input
                                         type="text"
-                                        value={editForm.customDevice || ''}
-                                        onChange={e => setEditForm({ ...editForm, customDevice: e.target.value, category: '其他' })}
-                                        placeholder="請輸入設備名稱，例如：電視、洗衣機..."
+                                        value={editForm[field.key] || ''}
+                                        onChange={e => setEditForm({ ...editForm, [field.key]: e.target.value })}
                                         style={inputStyle}
                                     />
                                 </div>
-                            )}
+                            ))}
+
+                            {/* 報修類別 + 其他自訂輸入 (inline) */}
+                            <div>
+                                <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', display: 'block', marginBottom: '4px' }}>
+                                    報修類別
+                                </label>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <select
+                                        value={editForm.category === '其他' || (editForm.category && editForm.category.startsWith('其他')) ? '其他' : (editForm.category || '')}
+                                        onChange={e => setEditForm({ ...editForm, category: e.target.value, customDevice: '' })}
+                                        style={{ ...inputStyle, flex: editForm.category === '其他' || (editForm.category && editForm.category.startsWith('其他')) ? '0 0 auto' : '1', width: 'auto', minWidth: '100px' }}
+                                    >
+                                        <option value="">請選擇</option>
+                                        {['水管', '電路', '冷氣', '熱水器', '其他'].map(o => <option key={o} value={o}>{o}</option>)}
+                                    </select>
+                                    {(editForm.category === '其他' || (editForm.category && editForm.category.startsWith('其他'))) && (
+                                        <input
+                                            type="text"
+                                            value={editForm.customDevice || ''}
+                                            onChange={e => setEditForm({ ...editForm, customDevice: e.target.value, category: '其他' })}
+                                            placeholder="請輸入設備名稱"
+                                            style={{ ...inputStyle, flex: 1 }}
+                                        />
+                                    )}
+                                </div>
+                            </div>
 
                             {/* 偏好時段（複選） */}
                             <div>
@@ -443,7 +442,7 @@ export default function TrackDetail() {
                                         {ticket.attachments.filter(a => a.file_type !== 'completion').map(att => (
                                             <div key={att.id} style={{ position: 'relative' }}>
                                                 <img
-                                                    src={att.file_url}
+                                                    src={`${API}/storage/${att.file_path}`}
                                                     alt={att.original_name}
                                                     style={{
                                                         width: '100%', height: '80px', objectFit: 'cover',
@@ -451,7 +450,7 @@ export default function TrackDetail() {
                                                         opacity: deletePhotoIds.includes(att.id) ? 0.3 : 1,
                                                         border: deletePhotoIds.includes(att.id) ? '2px solid #ef4444' : '1px solid rgba(255,255,255,0.1)',
                                                     }}
-                                                    onClick={() => window.open(att.file_url, '_blank')}
+                                                    onClick={() => window.open(`${API}/storage/${att.file_path}`, '_blank')}
                                                 />
                                                 <button
                                                     type="button"
@@ -813,14 +812,14 @@ export default function TrackDetail() {
                                 {ticket.attachments.filter(a => a.file_type !== 'completion').map(att => (
                                     <img
                                         key={att.id}
-                                        src={att.file_url}
+                                        src={`${API}/storage/${att.file_path}`}
                                         alt={att.original_name}
                                         style={{
                                             width: '100%', height: '80px', objectFit: 'cover',
                                             borderRadius: '8px', cursor: 'pointer',
                                             border: '1px solid rgba(255,255,255,0.1)',
                                         }}
-                                        onClick={() => window.open(att.file_url, '_blank')}
+                                        onClick={() => window.open(`${API}/storage/${att.file_path}`, '_blank')}
                                     />
                                 ))}
                             </div>
@@ -835,14 +834,14 @@ export default function TrackDetail() {
                                 {ticket.attachments.filter(a => a.file_type === 'completion').map(att => (
                                     <img
                                         key={att.id}
-                                        src={att.file_url}
+                                        src={`${API}/storage/${att.file_path}`}
                                         alt={att.original_name}
                                         style={{
                                             width: '100%', height: '80px', objectFit: 'cover',
                                             borderRadius: '8px', cursor: 'pointer',
                                             border: '1px solid rgba(16,185,129,0.3)',
                                         }}
-                                        onClick={() => window.open(att.file_url, '_blank')}
+                                        onClick={() => window.open(`${API}/storage/${att.file_path}`, '_blank')}
                                     />
                                 ))}
                             </div>
