@@ -155,11 +155,39 @@ export default function RepairForm() {
         }
     }, []) // eslint-disable-line
 
-    // 照片處理
-    const handlePhotos = (e) => {
+    // 照片壓縮（手機拍的照片動輒 10MB+，壓縮到 ~300KB）
+    const compressImage = (file, maxWidth = 1920, quality = 0.7) => {
+        return new Promise((resolve) => {
+            // 非圖片直接回傳
+            if (!file.type.startsWith('image/')) { resolve(file); return }
+            const reader = new FileReader()
+            reader.onload = (e) => {
+                const img = new Image()
+                img.onload = () => {
+                    const canvas = document.createElement('canvas')
+                    let w = img.width, h = img.height
+                    if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth }
+                    canvas.width = w; canvas.height = h
+                    canvas.getContext('2d').drawImage(img, 0, 0, w, h)
+                    canvas.toBlob((blob) => {
+                        const compressed = new File([blob], file.name, { type: 'image/jpeg' })
+                        addDebug(`壓縮: ${(file.size / 1024).toFixed(0)}KB → ${(compressed.size / 1024).toFixed(0)}KB`)
+                        resolve(compressed)
+                    }, 'image/jpeg', quality)
+                }
+                img.src = e.target.result
+            }
+            reader.readAsDataURL(file)
+        })
+    }
+
+    // 照片處理（選擇後自動壓縮）
+    const handlePhotos = async (e) => {
         const files = Array.from(e.target.files).slice(0, 5) // 最多 5 張
-        setPhotos(files)
-        setPreviews(files.map(f => URL.createObjectURL(f)))
+        addDebug(`選了 ${files.length} 張照片，開始壓縮...`)
+        const compressed = await Promise.all(files.map(f => compressImage(f)))
+        setPhotos(compressed)
+        setPreviews(compressed.map(f => URL.createObjectURL(f)))
     }
 
     const removePhoto = (index) => {

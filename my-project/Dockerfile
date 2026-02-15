@@ -33,6 +33,9 @@ COPY . .
 RUN composer dump-autoload --optimize
 
 
+# 複製自訂 PHP 設定（上傳限制等）
+COPY php.ini /usr/local/etc/php/conf.d/custom.ini
+
 # 暴露 port
 EXPOSE 8080
 
