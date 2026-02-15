@@ -659,10 +659,10 @@ export default function RepairForm() {
                             <div style={{ color: '#6b7280', marginBottom: '4px' }}>服務地址</div>
                             <div>{address}</div>
                         </div>
-                        {preferredTimeSlot && (
+                        {preferredTimeSlots.length > 0 && (
                             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', background: '#f9fafb', borderRadius: '8px' }}>
                                 <span style={{ color: '#6b7280' }}>偏好時段</span>
-                                <span>{preferredTimeSlot}</span>
+                                <span>{preferredTimeSlots.join(', ')}</span>
                             </div>
                         )}
                         {photos.length > 0 && (
