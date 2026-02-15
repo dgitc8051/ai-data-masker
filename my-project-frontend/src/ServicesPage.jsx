@@ -54,7 +54,7 @@ export default function ServicesPage() {
                         服務項目
                     </h1>
                     <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '14px', margin: 0 }}>
-                        專業團隊，全方位居家維修服務
+                        修繕通 RepairFlow，全方位居家維修服務
                     </p>
                 </div>
 

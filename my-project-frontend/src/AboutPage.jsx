@@ -33,7 +33,7 @@ export default function AboutPage() {
                         🏢 公司簡介
                     </h3>
                     <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '14px', lineHeight: '1.8', margin: 0 }}>
-                        全方位水電維修成立於 2010 年，深耕大台北地區超過 15 年，
+                        修繕通 RepairFlow 成立於 2010 年，深耕大台北地區超過 15 年，
                         擁有逾 50 位持照專業技師，累積服務超過 10 萬戶家庭。
                         我們秉持「快速、透明、安心」的服務理念，
                         全年無休為您的居家安全把關。

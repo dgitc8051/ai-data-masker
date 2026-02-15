@@ -42,7 +42,7 @@ echo "1️⃣ 建立 Rich Menu...\n";
 $richMenu = [
     'size' => ['width' => 2500, 'height' => 1686],
     'selected' => true,
-    'name' => '全方位水電維修',
+    'name' => '修繕通 RepairFlow',
     'chatBarText' => '選單',
     'areas' => [
         // 左上 - 用戶報修

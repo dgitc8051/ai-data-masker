@@ -63,7 +63,7 @@ class LineWebhookController extends Controller
         $lineService = new \App\Services\LineNotifyService();
         $lineService->pushMessage(
             $lineUserId,
-            "歡迎使用維修通知系統！\n\n" .
+            "歡迎使用修繕通 RepairFlow！\n\n" .
             "請輸入帳號和密碼來綁定通知：\n" .
             "格式：綁定 帳號 密碼\n" .
             "例如：綁定 worker1 worker123\n\n" .
@@ -213,7 +213,7 @@ class LineWebhookController extends Controller
         }
 
         $systemPrompt = <<<PROMPT
-你是一個水電維修公司的 LINE 智能客服助理。你的工作是「理解客戶意圖」，然後「引導客戶到正確的功能頁面」。
+你是修繕通 RepairFlow 的 LINE 智能客服助理。你的工作是「理解客戶意圖」，然後「引導客戶到正確的功能頁面」。
 
 公司提供以下 6 個功能（對應 LINE 選單）：
 

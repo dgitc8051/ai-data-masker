@@ -31,7 +31,7 @@ export default function HomePage() {
                     fontSize: '28px', fontWeight: '800', color: '#fff',
                     margin: '0 0 8px', letterSpacing: '-0.5px',
                 }}>
-                    全方位水電維修
+                    修繕通 RepairFlow
                 </h1>
                 <p style={{
                     color: 'rgba(255,255,255,0.6)', fontSize: '15px', margin: '0',
@@ -110,7 +110,7 @@ export default function HomePage() {
                 textAlign: 'center', marginTop: '40px', padding: '0 20px',
                 color: 'rgba(255,255,255,0.3)', fontSize: '12px',
             }}>
-                <p style={{ margin: '0 0 4px' }}>© 2026 全方位水電維修 版權所有</p>
+                <p style={{ margin: '0 0 4px' }}>© 2026 修繕通 RepairFlow 版權所有</p>
                 <p style={{ margin: '0' }}>服務專線：0800-123-456</p>
             </div>
         </div>
