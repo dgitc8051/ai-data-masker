@@ -19,9 +19,9 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['http://localhost:5173', 'https://ai-data-masker-production-fda9.up.railway.app'],
+    'allowed_origins' => ['http://localhost:5173', 'https://ai-data-masker-production-fda9.up.railway.app', 'https://liff.line.me'],
 
-    'allowed_origins_patterns' => [],
+    'allowed_origins_patterns' => ['#^https://.*\.up\.railway\.app$#'],
 
     'allowed_headers' => ['*'],
 
