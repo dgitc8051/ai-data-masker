@@ -216,64 +216,12 @@ class TicketController extends Controller
 
         $ticket->load('assignedUsers:id,name');
 
-        // LINE 推播通知（延遲到 response 送出後才執行，避免阻塞回應）
+        // LINE 推播通知（用背景程序執行，不阻塞 HTTP response）
         if ($isRepairMode) {
-            $ticketData = [
-                'ticket_no' => $ticket->ticket_no,
-                'category' => $ticket->category,
-                'phone' => $ticket->phone,
-                'address' => $ticket->address,
-                'description_raw' => $ticket->description_raw,
-                'customer_line_id' => $ticket->customer_line_id,
-            ];
-            app()->terminating(function () use ($ticketData) {
-                \Log::info('[store] terminating: sending LINE notifications...');
-                try {
-                    $lineService = new LineNotifyService();
-                    $adminLineIds = User::where('role', 'admin')
-                        ->whereNotNull('line_user_id')
-                        ->pluck('line_user_id')
-                        ->toArray();
-
-                    if (!empty($adminLineIds)) {
-                        $frontendUrl = 'https://ai-data-masker-production-fda9.up.railway.app';
-                        $msg = "📨 新報修單\n\n"
-                            . "編號：{$ticketData['ticket_no']}\n"
-                            . "類別：{$ticketData['category']}\n"
-                            . "電話：{$ticketData['phone']}\n"
-                            . "地址：{$ticketData['address']}\n"
-                            . "說明：" . mb_substr($ticketData['description_raw'] ?? '', 0, 50) . "\n\n"
-                            . "📋 查詢進度：\n{$frontendUrl}/track\n\n"
-                            . "請至後台處理。";
-
-                        foreach ($adminLineIds as $lineUserId) {
-                            $lineService->pushMessage($lineUserId, $msg);
-                        }
-                    }
-                } catch (\Exception $e) {
-                    \Log::warning('LINE 新報修通知失敗: ' . $e->getMessage());
-                }
-
-                // 通知客戶
-                if ($ticketData['customer_line_id']) {
-                    try {
-                        $lineService = $lineService ?? new LineNotifyService();
-                        $frontendUrl = env('FRONTEND_URL', 'https://ai-data-masker-production-fda9.up.railway.app');
-                        $lineService->pushMessage(
-                            $ticketData['customer_line_id'],
-                            "✅ 您的報修已成功送出！\n\n"
-                            . "📋 編號：{$ticketData['ticket_no']}\n"
-                            . "📌 類別：{$ticketData['category']}\n"
-                            . "📍 地址：{$ticketData['address']}\n\n"
-                            . "我們將儘速為您處理，狀態有更新時會再通知您。\n\n"
-                            . "📋 查詢進度：\n{$frontendUrl}/track"
-                        );
-                    } catch (\Exception $e) {
-                        \Log::warning('LINE 客戶報修確認通知失敗: ' . $e->getMessage());
-                    }
-                }
-                \Log::info('[store] terminating: LINE notifications done');
-            });
+            $artisanPath = base_path('artisan');
+            $cmd = sprintf('php %s notify:repair %d > /dev/null 2>&1 &', $artisanPath, $ticket->id);
+            \Log::info('[store] Launching background notification: ' . $cmd);
+            exec($cmd);
         }
 
         \Log::info('[store] Returning response for ticket: ' . $ticket->ticket_no);
