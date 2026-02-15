@@ -1152,6 +1152,71 @@ class TicketController extends Controller
     }
 
     /**
+     * 客服代客確認報價
+     * POST /api/tickets/{id}/admin-confirm-quote
+     */
+    public function adminConfirmQuote(Request $request, $id)
+    {
+        $ticket = Ticket::find($id);
+        if (!$ticket) {
+            return response()->json(['message' => '找不到此工單'], 404);
+        }
+
+        if (!$ticket->quoted_amount) {
+            return response()->json(['message' => '尚無報價可確認'], 422);
+        }
+
+        if ($ticket->quote_confirmed_at) {
+            return response()->json(['message' => '已確認過報價'], 422);
+        }
+
+        $request->validate([
+            'confirm_reason' => 'required|string|min:2',
+        ]);
+
+        $user = $request->user();
+        $adminName = $user ? $user->name : '客服';
+
+        $ticket->quote_confirmed_at = now();
+        $ticket->notes_internal = ($ticket->notes_internal ? $ticket->notes_internal . "\n" : '')
+            . "[代客確認報價] 由 {$adminName} 確認，原因：" . $request->input('confirm_reason');
+        $ticket->save();
+
+        // LINE 通知師傅
+        try {
+            $lineService = new LineNotifyService();
+            $workerLineIds = $ticket->assignedUsers()
+                ->whereNotNull('line_user_id')
+                ->pluck('line_user_id')
+                ->toArray();
+            if (!empty($workerLineIds)) {
+                $lineService->pushToMultiple(
+                    $workerLineIds,
+                    "✅ {$ticket->ticket_no} 報價已確認（客服 {$adminName} 代客確認）\n金額：\${$ticket->quoted_amount}\n可開始施工"
+                );
+            }
+
+            // 通知客戶（如果有 LINE ID）
+            if ($ticket->customer_line_id) {
+                $lineService->pushMessage(
+                    $ticket->customer_line_id,
+                    "✅ 您的維修單 {$ticket->ticket_no} 報價已確認！\n\n"
+                    . "確認金額：\${$ticket->quoted_amount}\n"
+                    . "（由客服 {$adminName} 代為確認）\n\n"
+                    . "師傅將盡快安排施工。"
+                );
+            }
+        } catch (\Exception $e) {
+            \Log::warning('LINE 代客確認報價通知失敗: ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'message' => '代客確認報價成功',
+            'ticket' => $ticket,
+        ]);
+    }
+
+    /**
      * 客服代客確認時段
      * POST /api/tickets/{id}/confirm-time
      */

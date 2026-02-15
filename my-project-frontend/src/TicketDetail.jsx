@@ -214,6 +214,30 @@ export default function TicketDetail() {
         setSaving(false)
     }
 
+    // 客服代客確認報價
+    const handleAdminConfirmQuote = async () => {
+        const reason = prompt('請輸入代客確認原因（例如：客戶電話確認）')
+        if (!reason || reason.trim().length < 2) return
+        setSaving(true)
+        try {
+            const res = await authFetch(`${API}/api/tickets/${id}/admin-confirm-quote`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ confirm_reason: reason.trim() }),
+            })
+            const data = await res.json()
+            if (res.ok) {
+                alert('✅ 代客確認報價成功，LINE 通知已送出')
+                fetchTicket()
+            } else {
+                alert(`❌ ${data.message || '操作失敗'}`)
+            }
+        } catch (err) {
+            alert('❌ 網路錯誤')
+        }
+        setSaving(false)
+    }
+
     // 師傅完工回報
     const handleCompletion = async () => {
         if (!confirm('確定要回報完工嗎？')) return
@@ -387,7 +411,20 @@ export default function TicketDetail() {
                                 ) : ticket.quoted_amount ? (
                                     <div style={rowStyle}>
                                         <span style={labelStyle}>客戶確認</span>
-                                        <span style={{ color: '#f59e0b', fontWeight: 'bold' }}>⏳ 等待確認</span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            <span style={{ color: '#f59e0b', fontWeight: 'bold' }}>⏳ 等待確認</span>
+                                            {(user?.role === 'admin') && (
+                                                <button
+                                                    onClick={handleAdminConfirmQuote}
+                                                    disabled={saving}
+                                                    style={{
+                                                        padding: '4px 12px', borderRadius: '6px', fontSize: '12px',
+                                                        background: '#10b981', color: 'white', border: 'none',
+                                                        cursor: 'pointer', fontWeight: 'bold',
+                                                    }}
+                                                >代客確認</button>
+                                            )}
+                                        </div>
                                     </div>
                                 ) : null}
                                 {ticket.actual_amount && (

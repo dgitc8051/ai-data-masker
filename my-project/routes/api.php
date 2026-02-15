@@ -73,6 +73,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/tickets/{id}/attachments', [TicketController::class, 'uploadAttachment']);
     Route::post('/tickets/{id}/propose-times', [TicketController::class, 'proposeTimeSlots']); // 師傅提供時段
     Route::post('/tickets/{id}/confirm-time', [TicketController::class, 'adminConfirmTime']); // 客服代客確認時段
+    Route::post('/tickets/{id}/admin-confirm-quote', [TicketController::class, 'adminConfirmQuote']); // 客服代客確認報價
     Route::post('/tickets/{id}/cancel-accept', [TicketController::class, 'workerCancelAcceptance']); // 師傅取消接單
 
     // LINE 綁定
