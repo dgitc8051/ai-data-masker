@@ -138,7 +138,7 @@ export default function RepairForm() {
     const [city, setCity] = useState('')
     const [district, setDistrict] = useState('')
     const [addressDetail, setAddressDetail] = useState('')
-    const [preferredTimeSlot, setPreferredTimeSlot] = useState('')
+    const [preferredTimeSlots, setPreferredTimeSlots] = useState([])
 
     // Step 3: 補充
     const [notes, setNotes] = useState('')
@@ -217,7 +217,7 @@ export default function RepairForm() {
             formData.append('customer_name', customerName)
             formData.append('phone', `09${phone}`)
             formData.append('address', address)
-            formData.append('preferred_time_slot', preferredTimeSlot)
+            formData.append('preferred_time_slot', preferredTimeSlots.join(', '))
             if (notes) formData.append('notes_internal', notes)
             if (lineUserId) formData.append('customer_line_id', lineUserId)
             if (assignedUserIds.length > 0) {
@@ -593,20 +593,24 @@ export default function RepairForm() {
                     </div>
 
                     <div className="form-group">
-                        <label>偏好時段</label>
+                        <label>偏好時段（可複選）</label>
                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                             {TIME_SLOTS.map(slot => (
                                 <div
                                     key={slot}
-                                    onClick={() => setPreferredTimeSlot(slot)}
+                                    onClick={() => setPreferredTimeSlots(prev =>
+                                        prev.includes(slot)
+                                            ? prev.filter(s => s !== slot)
+                                            : [...prev, slot]
+                                    )}
                                     style={{
                                         padding: '8px 16px', borderRadius: '20px', cursor: 'pointer',
                                         fontSize: '13px', transition: 'all 0.2s',
-                                        background: preferredTimeSlot === slot ? '#4f46e5' : '#f3f4f6',
-                                        color: preferredTimeSlot === slot ? 'white' : '#374151',
-                                        border: preferredTimeSlot === slot ? '1px solid #4f46e5' : '1px solid #e5e7eb',
+                                        background: preferredTimeSlots.includes(slot) ? '#4f46e5' : '#f3f4f6',
+                                        color: preferredTimeSlots.includes(slot) ? 'white' : '#374151',
+                                        border: preferredTimeSlots.includes(slot) ? '1px solid #4f46e5' : '1px solid #e5e7eb',
                                     }}
-                                >{slot}</div>
+                                >{preferredTimeSlots.includes(slot) ? '✓ ' : ''}{slot}</div>
                             ))}
                         </div>
                     </div>

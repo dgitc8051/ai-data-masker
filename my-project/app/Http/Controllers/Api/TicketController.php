@@ -932,7 +932,7 @@ class TicketController extends Controller
         }
 
         // 更新可編輯欄位
-        $updatable = ['customer_name', 'address', 'description_raw', 'category', 'preferred_time_slot', 'is_urgent'];
+        $updatable = ['customer_name', 'address', 'description_raw', 'category', 'preferred_time_slot'];
         foreach ($updatable as $field) {
             if ($request->has($field)) {
                 $ticket->{$field} = $request->input($field);
@@ -946,10 +946,11 @@ class TicketController extends Controller
                 $deleteIds = json_decode($deleteIds, true) ?? [];
             }
             if (!empty($deleteIds)) {
-                $ticket->attachments()->whereIn('id', $deleteIds)->each(function ($att) {
+                $attachments = $ticket->attachments()->whereIn('id', $deleteIds)->get();
+                foreach ($attachments as $att) {
                     \Storage::disk('public')->delete($att->file_path);
                     $att->delete();
-                });
+                }
             }
         }
 

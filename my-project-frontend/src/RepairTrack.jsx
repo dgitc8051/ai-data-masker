@@ -39,10 +39,19 @@ export default function RepairTrack() {
             setLiffReady(true)
             return
         }
+
+        // 5 秒 timeout 保護
+        const timeout = setTimeout(() => {
+            console.warn('LIFF init timeout, fallback to manual search')
+            setLiffReady(true)
+        }, 5000)
+
         liff.init({ liffId })
             .then(async () => {
+                clearTimeout(timeout)
                 if (!liff.isLoggedIn()) {
-                    // 強制 LINE 登入（此 LIFF 端點為 /track，不會 400）
+                    // 強制 LINE 登入
+                    setLiffReady(true) // 預先設 ready 避免卡住
                     liff.login({ redirectUri: window.location.href })
                     return
                 }
@@ -55,6 +64,7 @@ export default function RepairTrack() {
                 setLiffReady(true)
             })
             .catch(err => {
+                clearTimeout(timeout)
                 console.warn('LIFF 初始化失敗:', err)
                 setLiffReady(true)
             })

@@ -67,13 +67,24 @@ export default function TrackDetail() {
                 if (data.ticket.quote_confirmed_at) setConfirmed(true)
                 // 補件模式：預填表單
                 if (data.ticket.editable) {
+                    // 解析 preferred_time_slot → 陣列
+                    const existingSlot = data.ticket.preferred_time_slot || ''
+                    const slotsArray = existingSlot ? existingSlot.split(', ').filter(Boolean) : []
+                    // 解析 category → 其他 + customDevice
+                    let category = data.ticket.category || ''
+                    let customDevice = ''
+                    const match = category.match(/^其他[（(](.+?)[）)]$/)
+                    if (match) {
+                        customDevice = match[1]
+                        category = '其他'
+                    }
                     setEditForm({
                         customer_name: data.ticket.customer_name || '',
                         address: data.ticket.address || '',
                         description_raw: data.ticket.description || '',
-                        category: data.ticket.category || '',
-                        preferred_time_slot: data.ticket.preferred_time_slot || '',
-                        is_urgent: data.ticket.is_urgent || false,
+                        category,
+                        customDevice,
+                        preferred_time_slots: slotsArray,
                     })
                 }
             } else {
@@ -120,7 +131,22 @@ export default function TrackDetail() {
             if (line_user_id) formData.append('line_user_id', line_user_id)
             if (phone) formData.append('phone', phone)
             if (ticketNo) formData.append('ticket_no', ticketNo)
-            Object.entries(editForm).forEach(([key, val]) => {
+
+            // 處理 category：其他時合併自訂名稱
+            const formToSend = { ...editForm }
+            if (formToSend.category === '其他' && formToSend.customDevice) {
+                formToSend.category = `其他（${formToSend.customDevice}）`
+            }
+            delete formToSend.customDevice
+
+            // 處理偏好時段複選
+            if (Array.isArray(formToSend.preferred_time_slots)) {
+                formToSend.preferred_time_slot = formToSend.preferred_time_slots.join(', ')
+                delete formToSend.preferred_time_slots
+            }
+
+            Object.entries(formToSend).forEach(([key, val]) => {
+                if (val === undefined || val === null) return
                 formData.append(key, typeof val === 'boolean' ? (val ? '1' : '0') : val)
             })
             // 要刪除的舊照片
@@ -134,7 +160,25 @@ export default function TrackDetail() {
                 `${import.meta.env.VITE_API_URL}/api/tickets/track/${id}/supplement`,
                 { method: 'POST', body: formData }
             )
-            const data = await res.json()
+
+            // 容錯：先讀 text 再 parse JSON
+            const text = await res.text()
+            let data
+            try {
+                data = JSON.parse(text)
+            } catch {
+                console.error('Supplement response not JSON:', text?.substring(0, 200))
+                if (res.ok) {
+                    // 即使回傳非 JSON，只要 HTTP 200 就算成功
+                    setSubmitted(true)
+                    setNewPhotos([])
+                    setDeletePhotoIds([])
+                    fetchDetail()
+                    return
+                }
+                throw new Error('伺服器回傳格式錯誤')
+            }
+
             if (res.ok) {
                 setSubmitted(true)
                 setNewPhotos([])
@@ -143,8 +187,9 @@ export default function TrackDetail() {
             } else {
                 alert(data.message || '補件失敗')
             }
-        } catch {
-            alert('網路連線錯誤')
+        } catch (err) {
+            console.error('Supplement error:', err)
+            alert(`❌ ${err.message || '網路連線錯誤'}`)
         } finally {
             setSubmitting(false)
         }
@@ -301,7 +346,6 @@ export default function TrackDetail() {
                                 { key: 'customer_name', label: '姓名', type: 'text' },
                                 { key: 'category', label: '報修類別', type: 'select', options: ['水管', '電路', '冷氣', '熱水器', '其他'] },
                                 { key: 'address', label: '服務地址', type: 'text' },
-                                { key: 'preferred_time_slot', label: '偏好時段', type: 'select', options: ['上午（09:00-12:00）', '下午（13:00-17:00）', '晚上（18:00-21:00）', '週末皆可'] },
                             ].map(field => (
                                 <div key={field.key}>
                                     <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', display: 'block', marginBottom: '4px' }}>
@@ -326,6 +370,53 @@ export default function TrackDetail() {
                                     )}
                                 </div>
                             ))}
+
+                            {/* 其他設備自訂輸入 */}
+                            {(editForm.category === '其他' || (editForm.category && editForm.category.startsWith('其他'))) && (
+                                <div>
+                                    <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', display: 'block', marginBottom: '4px' }}>
+                                        設備名稱
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={editForm.customDevice || ''}
+                                        onChange={e => setEditForm({ ...editForm, customDevice: e.target.value, category: '其他' })}
+                                        placeholder="請輸入設備名稱，例如：電視、洗衣機..."
+                                        style={inputStyle}
+                                    />
+                                </div>
+                            )}
+
+                            {/* 偏好時段（複選） */}
+                            <div>
+                                <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', display: 'block', marginBottom: '4px' }}>
+                                    偏好時段（可複選）
+                                </label>
+                                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                    {['上午（09:00-12:00）', '下午（13:00-17:00）', '晚上（18:00-21:00）', '週末皆可'].map(slot => {
+                                        const slots = editForm.preferred_time_slots || []
+                                        const isSelected = slots.includes(slot)
+                                        return (
+                                            <div
+                                                key={slot}
+                                                onClick={() => {
+                                                    const newSlots = isSelected
+                                                        ? slots.filter(s => s !== slot)
+                                                        : [...slots, slot]
+                                                    setEditForm({ ...editForm, preferred_time_slots: newSlots })
+                                                }}
+                                                style={{
+                                                    padding: '6px 12px', borderRadius: '16px', cursor: 'pointer',
+                                                    fontSize: '12px', transition: 'all 0.2s',
+                                                    background: isSelected ? '#4f46e5' : 'rgba(255,255,255,0.08)',
+                                                    color: isSelected ? 'white' : 'rgba(255,255,255,0.7)',
+                                                    border: isSelected ? '1px solid #4f46e5' : '1px solid rgba(255,255,255,0.15)',
+                                                }}
+                                            >{isSelected ? '✓ ' : ''}{slot}</div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
 
                             <div>
                                 <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', display: 'block', marginBottom: '4px' }}>

@@ -10,7 +10,7 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
-        User::firstOrCreate(
+        $admin = User::firstOrCreate(
             ['username' => 'admin'],
             [
                 'name' => '系統管理員',
@@ -20,8 +20,9 @@ class UserSeeder extends Seeder
                 'email' => 'admin@demo.com',
             ]
         );
+        \Log::info($admin->wasRecentlyCreated ? 'UserSeeder: admin 帳號已建立' : 'UserSeeder: admin 帳號已存在，未修改');
 
-        User::firstOrCreate(
+        $worker = User::firstOrCreate(
             ['username' => 'worker1'],
             [
                 'name' => '王師傅',
@@ -31,5 +32,6 @@ class UserSeeder extends Seeder
                 'email' => null,
             ]
         );
+        \Log::info($worker->wasRecentlyCreated ? 'UserSeeder: worker1 帳號已建立' : 'UserSeeder: worker1 帳號已存在，未修改');
     }
 }
