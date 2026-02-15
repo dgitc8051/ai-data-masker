@@ -81,38 +81,6 @@ class LineNotifyService
     }
 
     /**
-     * 完工通知（推給客服/管理員）
-     */
-    public function notifyCompletion(string $ticketNo, string $workerName, array $adminLineIds): void
-    {
-        if (empty($adminLineIds))
-            return;
-
-        $message = "【完工通知】\n";
-        $message .= "工單：{$ticketNo}\n";
-        $message .= "師傅：{$workerName}\n";
-        $message .= "狀態：已回報完工 ✅\n";
-        $message .= "請至系統確認結案";
-
-        $this->pushToMultiple($adminLineIds, $message);
-    }
-
-    /**
-     * 結案通知
-     */
-    public function notifyClosed(string $ticketNo, ?string $customerLineId): void
-    {
-        if (empty($customerLineId))
-            return;
-
-        $message = "【維修完成通知】\n";
-        $message .= "您的報修案件 {$ticketNo} 已結案。\n";
-        $message .= "感謝您的耐心等候！如有問題請再聯繫。";
-
-        $this->pushMessage($customerLineId, $message);
-    }
-
-    /**
      * 組合派工訊息（備用）
      */
     private function buildDispatchMessage(array $payload): string

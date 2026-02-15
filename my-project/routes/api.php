@@ -14,14 +14,20 @@ use App\Http\Controllers\Api\LineCustomerController;
 
 // === 公開路由 ===
 Route::post('/login', [AuthController::class, 'login']);
-Route::post('/repair-tickets', [TicketController::class, 'store']); // 公開報修建票
-Route::get('/tickets/track', [TicketController::class, 'trackByPhone']); // 公開追蹤
-Route::get('/tickets/track-by-line', [TicketController::class, 'trackByLineId']); // LINE ID 追蹤
-Route::get('/tickets/track/{id}', [TicketController::class, 'trackDetail']); // 公開詳情（遮罩版）
-Route::post('/tickets/track/{id}/confirm-quote', [TicketController::class, 'confirmQuote']); // 客戶確認報價
-Route::post('/tickets/track/{id}/supplement', [TicketController::class, 'supplementTicket']); // 客戶補件（含照片）
-Route::post('/tickets/track/{id}/confirm-time', [TicketController::class, 'confirmTimeSlot']); // 客戶確認時段
-Route::post('/tickets/track/{id}/cancel', [TicketController::class, 'customerCancelTicket']); // 客戶取消
+
+// 公開路由：加入速率限制防止濫用
+Route::middleware('throttle:30,1')->group(function () {
+    Route::get('/tickets/track', [TicketController::class, 'trackByPhone']); // 公開追蹤
+    Route::get('/tickets/track-by-line', [TicketController::class, 'trackByLineId']); // LINE ID 追蹤
+    Route::get('/tickets/track/{id}', [TicketController::class, 'trackDetail']); // 公開詳情（遮罩版）
+});
+Route::middleware('throttle:10,1')->group(function () {
+    Route::post('/repair-tickets', [TicketController::class, 'store']); // 公開報修建票
+    Route::post('/tickets/track/{id}/confirm-quote', [TicketController::class, 'confirmQuote']); // 客戶確認報價
+    Route::post('/tickets/track/{id}/supplement', [TicketController::class, 'supplementTicket']); // 客戶補件（含照片）
+    Route::post('/tickets/track/{id}/confirm-time', [TicketController::class, 'confirmTimeSlot']); // 客戶確認時段
+    Route::post('/tickets/track/{id}/cancel', [TicketController::class, 'customerCancelTicket']); // 客戶取消
+});
 Route::post('/line/webhook', [LineWebhookController::class, 'webhook']); // LINE Webhook
 Route::post('/line-customers/register', [LineCustomerController::class, 'register']); // LIFF 客戶註冊
 

@@ -9,10 +9,11 @@ export function AuthProvider({ children }) {
     const [token, setToken] = useState(localStorage.getItem('auth_token'))
     const [loading, setLoading] = useState(true)
 
-    // 帶 token 的 fetch
+    // 帶 token 的 fetch（自動偵測 FormData，不覆蓋 Content-Type）
     const authFetch = async (url, options = {}) => {
+        const isFormData = options.body instanceof FormData
         const headers = {
-            'Content-Type': 'application/json',
+            ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
             'Accept': 'application/json',
             ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
             ...(options.headers || {}),

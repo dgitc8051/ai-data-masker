@@ -16,7 +16,7 @@ return new class extends Migration {
             // === 關聯 ===
             $table->foreignId('ticket_id')                           // 關聯到 tickets 表的 id
                 ->constrained()                                    // 自動加上外鍵約束
-                ->onDelete('cascade');                              // 工單刪除時，留言也一起刪
+                ->cascadeOnDelete();                               // 工單刪除時，留言也一起刪
 
             // === 留言內容 ===
             $table->string('author')->default('匿名');                // 留言者

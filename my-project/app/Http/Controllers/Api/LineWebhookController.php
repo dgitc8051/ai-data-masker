@@ -162,7 +162,7 @@ class LineWebhookController extends Controller
                 return;
             }
 
-            $user->update(['line_user_id' => null]);
+            $user->update(['line_user_id' => null, 'line_display_name' => null]);
             $lineService->pushMessage(
                 $lineUserId,
                 "✅ 已解除綁定！\n\n" .
@@ -204,7 +204,7 @@ class LineWebhookController extends Controller
      */
     private function aiSmartGuide(string $userMessage): string
     {
-        $frontendUrl = 'https://ai-data-masker-production-fda9.up.railway.app';
+        $frontendUrl = env('FRONTEND_URL', 'https://ai-data-masker-production-fda9.up.railway.app');
         $apiKey = env('OPENAI_API_KEY', '');
 
         if (empty($apiKey)) {

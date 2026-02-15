@@ -11,6 +11,7 @@ use App\Models\CustomMaskField;
 use App\Services\MaskService;
 use App\Services\AiMaskService;
 use App\Services\LineNotifyService;
+use Illuminate\Support\Facades\DB;
 
 class TicketController extends Controller
 {
@@ -76,13 +77,9 @@ class TicketController extends Controller
      */
     public function store(Request $request)
     {
-        \Log::info('[store] ===== START =====');
-        \Log::info('[store] IP: ' . $request->ip());
-        \Log::info('[store] Origin: ' . $request->header('Origin'));
-        \Log::info('[store] Content-Type: ' . $request->header('Content-Type'));
-        \Log::info('[store] All input keys: ' . implode(', ', array_keys($request->all())));
-        \Log::info('[store] category: ' . $request->input('category'));
-        \Log::info('[store] hasFile(attachments): ' . ($request->hasFile('attachments') ? 'yes' : 'no'));
+        \Log::debug('[store] ===== START =====');
+        \Log::debug('[store] IP: ' . $request->ip() . ', Content-Type: ' . $request->header('Content-Type'));
+        \Log::debug('[store] category: ' . $request->input('category') . ', hasFile: ' . ($request->hasFile('attachments') ? 'yes' : 'no'));
 
         $user = $request->user();
 
@@ -98,13 +95,16 @@ class TicketController extends Controller
             }
         }
 
-        // 產生工單編號（短格式：TK250215001）
-        $today = now()->format('ymd'); // 2-digit year
-        $lastTicket = Ticket::where('ticket_no', 'like', "TK{$today}%")
-            ->orderBy('ticket_no', 'desc')
-            ->first();
-        $nextNumber = $lastTicket ? (int) substr($lastTicket->ticket_no, -3) + 1 : 1;
-        $ticketNo = "TK{$today}" . str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
+        // 產生工單編號（短格式：TK2502150001）—— 使用 DB 交易鎖防止並發重複
+        $today = now()->format('ymd');
+        $ticketNo = DB::transaction(function () use ($today) {
+            $lastTicket = Ticket::where('ticket_no', 'like', "TK{$today}%")
+                ->lockForUpdate()
+                ->orderBy('ticket_no', 'desc')
+                ->first();
+            $nextNumber = $lastTicket ? (int) substr($lastTicket->ticket_no, -4) + 1 : 1;
+            return "TK{$today}" . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
+        });
 
         $isRepairMode = $request->has('category');
 
@@ -288,7 +288,7 @@ class TicketController extends Controller
 
         $updatable = [
             'title',
-            'status',
+            // 注意：'status' 不在此列表，狀態變更必須透過 updateStatus() 以保護狀態流
             'priority',
             'category',
             'description_summary',

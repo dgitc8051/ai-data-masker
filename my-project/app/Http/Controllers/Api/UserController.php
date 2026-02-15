@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 
+// 管理員權限檢查 trait（store / destroy / updatePassword）
+
 class UserController extends Controller
 {
     /**
@@ -53,6 +55,10 @@ class UserController extends Controller
      */
     public function store(Request $request)
     {
+        if ($request->user()->role !== 'admin') {
+            return response()->json(['message' => '權限不足'], 403);
+        }
+
         $request->validate([
             'name' => 'required|string|max:255',
             'username' => 'required|string|max:255|unique:users',
@@ -82,8 +88,12 @@ class UserController extends Controller
      * 刪除使用者
      * DELETE /api/users/{id}
      */
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
+        if ($request->user()->role !== 'admin') {
+            return response()->json(['message' => '權限不足'], 403);
+        }
+
         $user = User::find($id);
 
         if (!$user) {
@@ -110,6 +120,10 @@ class UserController extends Controller
      */
     public function updatePassword(Request $request, $id)
     {
+        if ($request->user()->role !== 'admin') {
+            return response()->json(['message' => '權限不足'], 403);
+        }
+
         $request->validate([
             'password' => 'required|string|min:3',
         ]);
