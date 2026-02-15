@@ -171,7 +171,7 @@ export default function UserManage() {
                                                     padding: '2px 10px', borderRadius: '20px', fontSize: '12px',
                                                     background: '#d1fae5', color: '#065f46',
                                                 }}>
-                                                    ✅ 已綁定
+                                                    ✅ {u.line_display_name || '已綁定'}
                                                 </span>
                                             ) : (
                                                 <span style={{

@@ -15,7 +15,7 @@ class UserController extends Controller
      */
     public function index()
     {
-        $users = User::select('id', 'name', 'username', 'role', 'line_user_id', 'created_at')
+        $users = User::select('id', 'name', 'username', 'role', 'line_user_id', 'line_display_name', 'created_at')
             ->orderBy('created_at', 'desc')
             ->get()
             ->map(function ($u) {
@@ -25,6 +25,7 @@ class UserController extends Controller
                     'username' => $u->username,
                     'role' => $u->role,
                     'line_bound' => !empty($u->line_user_id),
+                    'line_display_name' => $u->line_display_name,
                     'created_at' => $u->created_at,
                 ];
             });
@@ -143,7 +144,7 @@ class UserController extends Controller
             return response()->json(['message' => '此使用者尚未綁定 LINE'], 400);
         }
 
-        $user->update(['line_user_id' => null]);
+        $user->update(['line_user_id' => null, 'line_display_name' => null]);
 
         return response()->json([
             'message' => "已解除「{$user->name}」的 LINE 綁定",

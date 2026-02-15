@@ -96,15 +96,45 @@ class LineWebhookController extends Controller
                 return;
             }
 
-            $user->update(['line_user_id' => $lineUserId]);
+            // 檢查：此帳號是否已被「其他」LINE 綁定
+            if (!empty($user->line_user_id) && $user->line_user_id !== $lineUserId) {
+                $lineService->pushMessage(
+                    $lineUserId,
+                    "⚠️ 帳號「{$user->name}（{$username}）」已被其他 LINE 綁定。\n\n" .
+                    "如需重新綁定，請先由原 LINE 輸入：\n" .
+                    "解除綁定 {$username} 密碼\n\n" .
+                    "或請管理員在後台解除綁定。"
+                );
+                Log::warning("LINE 綁定失敗（已被其他 LINE 綁定）: {$username}");
+                return;
+            }
+
+            // 提示：此 LINE 已綁定其他帳號
+            $existingBindings = User::where('line_user_id', $lineUserId)
+                ->where('id', '!=', $user->id)
+                ->get(['name', 'username', 'role']);
+            $bindingWarning = '';
+            if ($existingBindings->isNotEmpty()) {
+                $names = $existingBindings->map(fn($u) => "「{$u->name}（{$u->username}）」")->join('、');
+                $bindingWarning = "\n\n⚠️ 提醒：此 LINE 同時綁定了 {$names}";
+            }
+
+            // 取得 LINE 暱稱
+            $displayName = $this->getLineDisplayName($lineUserId) ?? '';
+
+            $user->update([
+                'line_user_id' => $lineUserId,
+                'line_display_name' => $displayName,
+            ]);
             $lineService->pushMessage(
                 $lineUserId,
                 "✅ 綁定成功！\n\n" .
                 "帳號：{$user->name}（{$user->username}）\n" .
                 "角色：" . ($user->role === 'admin' ? '管理員' : '師傅') . "\n\n" .
-                "之後的派工通知將會透過 LINE 推送給您。"
+                "之後的派工通知將會透過 LINE 推送給您。" .
+                $bindingWarning
             );
-            Log::info("LINE 帳號綁定成功: {$username} → {$lineUserId}");
+            Log::info("LINE 帳號綁定成功: {$username} → {$lineUserId} ({$displayName})");
             return;
         }
 
@@ -270,11 +300,42 @@ PROMPT;
             return response()->json(['message' => '找不到使用者'], 404);
         }
 
-        $user->update(['line_user_id' => $request->input('line_user_id')]);
+        $lineUserId = $request->input('line_user_id');
+        $displayName = $this->getLineDisplayName($lineUserId) ?? '';
+
+        $user->update([
+            'line_user_id' => $lineUserId,
+            'line_display_name' => $displayName,
+        ]);
 
         return response()->json([
             'message' => 'LINE 綁定成功',
-            'user' => $user->only(['id', 'name', 'username', 'line_user_id']),
+            'user' => $user->only(['id', 'name', 'username', 'line_user_id', 'line_display_name']),
         ]);
+    }
+
+    /**
+     * 透過 LINE Messaging API 取得用戶暱稱
+     */
+    private function getLineDisplayName(string $lineUserId): ?string
+    {
+        $token = config('services.line.channel_token');
+        if (empty($token)) {
+            return null;
+        }
+
+        try {
+            $response = \Illuminate\Support\Facades\Http::withHeaders([
+                'Authorization' => "Bearer {$token}",
+            ])->get("https://api.line.me/v2/bot/profile/{$lineUserId}");
+
+            if ($response->ok()) {
+                return $response->json('displayName');
+            }
+        } catch (\Exception $e) {
+            Log::warning('取得 LINE 暱稱失敗: ' . $e->getMessage());
+        }
+
+        return null;
     }
 }
