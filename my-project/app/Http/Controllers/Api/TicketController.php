@@ -76,6 +76,14 @@ class TicketController extends Controller
      */
     public function store(Request $request)
     {
+        \Log::info('[store] ===== START =====');
+        \Log::info('[store] IP: ' . $request->ip());
+        \Log::info('[store] Origin: ' . $request->header('Origin'));
+        \Log::info('[store] Content-Type: ' . $request->header('Content-Type'));
+        \Log::info('[store] All input keys: ' . implode(', ', array_keys($request->all())));
+        \Log::info('[store] category: ' . $request->input('category'));
+        \Log::info('[store] hasFile(attachments): ' . ($request->hasFile('attachments') ? 'yes' : 'no'));
+
         $user = $request->user();
 
         // 產生工單編號（短格式：TK250215001）
