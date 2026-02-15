@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import LiffCloseButton from './LiffCloseButton'
 
 const services = [
     {
@@ -40,6 +41,7 @@ export default function ServicesPage() {
             background: 'linear-gradient(135deg, #1e3a5f 0%, #0f2439 100%)',
             padding: '20px 16px 40px',
         }}>
+            <LiffCloseButton />
             <div style={{ maxWidth: '480px', margin: '0 auto' }}>
                 <Link to="/home" style={{
                     color: 'rgba(255,255,255,0.5)', fontSize: '13px',

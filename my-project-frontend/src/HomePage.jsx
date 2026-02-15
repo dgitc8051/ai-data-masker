@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useAuth } from './AuthContext'
+import LiffCloseButton from './LiffCloseButton'
 
 const menuItems = [
     { icon: '🔧', label: '用戶報修', desc: '線上填寫維修需求', to: '/repair', color: '#ef4444' },
@@ -19,6 +20,7 @@ export default function HomePage() {
             background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
             padding: '0 0 40px 0',
         }}>
+            <LiffCloseButton />
             {/* Hero */}
             <div style={{
                 textAlign: 'center', padding: '48px 20px 32px',

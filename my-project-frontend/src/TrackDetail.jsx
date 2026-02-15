@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useParams, useLocation } from 'react-router-dom'
+import LiffCloseButton from './LiffCloseButton'
 
 const statusMap = {
     new: { label: '新建立', color: '#f59e0b', icon: '📝' },
@@ -195,6 +196,7 @@ export default function TrackDetail() {
             background: 'linear-gradient(135deg, #1e3a5f 0%, #0f2439 100%)',
             padding: '20px 16px 40px',
         }}>
+            <LiffCloseButton />
             <div style={{ maxWidth: '480px', margin: '0 auto' }}>
                 {/* Header */}
                 <Link to="/track" style={{

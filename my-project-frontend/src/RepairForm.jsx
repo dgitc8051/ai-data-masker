@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext'
 import TW from './twAddress'
 import liff from '@line/liff'
+import LiffCloseButton from './LiffCloseButton'
 
 const CATEGORIES = [
     { value: '水管', label: '🔧 水管/馬桶', icon: '🚿' },
@@ -386,6 +387,7 @@ export default function RepairForm() {
 
     return (
         <div className="container">
+            <LiffCloseButton />
             <h1>🔧 報修填單</h1>
 
             {/* 🔧 Debug panel - visible in LINE in-app browser */}

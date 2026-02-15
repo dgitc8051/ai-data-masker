@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import liff from '@line/liff'
+import LiffCloseButton from './LiffCloseButton'
 
 export default function RepairTrack() {
     const navigate = useNavigate()
@@ -126,6 +127,7 @@ export default function RepairTrack() {
 
     return (
         <div style={containerStyle}>
+            <LiffCloseButton />
             <div style={{ maxWidth: '480px', margin: '0 auto' }}>
                 {/* Header */}
                 <Link to="/home" style={{
