@@ -40,6 +40,13 @@ export default function RepairForm() {
     const [lineDisplayName, setLineDisplayName] = useState('')
     const [liffReady, setLiffReady] = useState(false)
     const [liffError, setLiffError] = useState('')
+    const [debugLogs, setDebugLogs] = useState([])
+
+    const addDebug = (msg) => {
+        const ts = new Date().toLocaleTimeString('zh-TW')
+        setDebugLogs(prev => [...prev, `[${ts}] ${msg}`])
+        console.log('[DEBUG]', msg)
+    }
 
     // LIFF 初始化（強制 LINE 登入 → 註冊客戶 → 自動帶入舊資料）
     useEffect(() => {
@@ -49,22 +56,23 @@ export default function RepairForm() {
             setLiffReady(true)
             return
         }
-        console.log('[LIFF] Starting init with liffId:', liffId)
+        addDebug(`LIFF init start, liffId: ${liffId?.substring(0, 8)}...`)
         liff.init({ liffId })
             .then(async () => {
-                console.log('[LIFF] init success, isLoggedIn:', liff.isLoggedIn())
+                addDebug(`LIFF init OK, isLoggedIn: ${liff.isLoggedIn()}`)
                 if (!liff.isLoggedIn()) {
                     liff.login({ redirectUri: window.location.href })
                     return
                 }
                 try {
                     const profile = await liff.getProfile()
-                    console.log('[LIFF] profile:', profile.userId, profile.displayName)
+                    addDebug(`profile OK: ${profile.userId?.substring(0, 8)}...`)
                     setLineUserId(profile.userId)
                     setLineDisplayName(profile.displayName)
 
                     // 註冊到 line_customers + 取得過去資料
-                    console.log('[LIFF] Calling register:', `${API}/api/line-customers/register`)
+                    addDebug(`register => ${API}/api/line-customers/register`)
+                    const regStart = Date.now()
                     const res = await fetch(`${API}/api/line-customers/register`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
@@ -74,9 +82,9 @@ export default function RepairForm() {
                             avatar_url: profile.pictureUrl || '',
                         }),
                     })
-                    console.log('[LIFF] register response status:', res.status)
+                    addDebug(`register done: ${res.status} (${Date.now() - regStart}ms)`)
                     const data = await res.json()
-                    console.log('[LIFF] register data:', data)
+                    addDebug(`register data: ${data.customer?.customer_name || 'new'}`)
                     // 自動帶入過去報修資料（回頭客）
                     if (data.customer) {
                         if (data.customer.customer_name) setCustomerName(data.customer.customer_name)
@@ -105,6 +113,7 @@ export default function RepairForm() {
                     }
                 } catch (err) {
                     console.error('[LIFF] 登入/註冊失敗:', err, err.stack)
+                    addDebug(`LIFF ERROR: ${err.message}`)
                     setLiffError(`LINE 登入失敗: ${err.message}`)
                 }
                 setLiffReady(true)
@@ -167,14 +176,9 @@ export default function RepairForm() {
     // 送出
     const handleSubmit = async () => {
         setSubmitting(true)
-        console.log('[handleSubmit] ===== START =====')
-        console.log('[handleSubmit] API:', API)
-        console.log('[handleSubmit] isLoggedIn:', isLoggedIn)
-        console.log('[handleSubmit] category:', category)
-        console.log('[handleSubmit] photos count:', photos.length)
-        if (photos.length > 0) {
-            photos.forEach((f, i) => console.log(`[handleSubmit] photo[${i}]:`, f.name, f.size, f.type))
-        }
+        addDebug('===== SUBMIT START =====')
+        addDebug(`API: ${API}`)
+        addDebug(`photos: ${photos.length}, sizes: ${photos.map(f => `${(f.size / 1024).toFixed(0)}KB`).join(',') || 'none'}`)
         try {
             const formData = new FormData()
             formData.append('category', category)
@@ -196,49 +200,45 @@ export default function RepairForm() {
             const headers = { 'Accept': 'application/json' }
             if (token) headers['Authorization'] = `Bearer ${token}`
 
-            console.log('[handleSubmit] endpoint:', endpoint)
-            console.log('[handleSubmit] headers:', JSON.stringify(headers))
-            console.log('[handleSubmit] formData keys:', [...formData.keys()])
+            addDebug(`fetch => ${endpoint}`)
+            const fetchStart = Date.now()
 
             const res = await fetch(endpoint, {
                 method: 'POST',
                 headers,
                 body: formData,
             })
-            console.log('[handleSubmit] response status:', res.status)
-            console.log('[handleSubmit] response headers:', Object.fromEntries(res.headers.entries()))
+            addDebug(`response: ${res.status} (${Date.now() - fetchStart}ms)`)
 
             const text = await res.text()
-            console.log('[handleSubmit] response body (first 500):', text.substring(0, 500))
+            addDebug(`body length: ${text.length} chars`)
 
             let data
             try {
                 data = JSON.parse(text)
             } catch (parseErr) {
-                console.error('[handleSubmit] JSON parse failed:', parseErr)
+                addDebug(`JSON parse FAILED: ${text.substring(0, 80)}`)
                 throw new Error(`伺服器回傳非 JSON: ${text.substring(0, 100)}`)
             }
 
             if (!res.ok) throw new Error(data.message || '建立失敗')
 
-            console.log('[handleSubmit] SUCCESS:', data.ticket?.ticket_no)
+            addDebug(`SUCCESS: ${data.ticket?.ticket_no}`)
             if (isLoggedIn) {
                 alert(`✅ 報修單 ${data.ticket.ticket_no} 已建立！`)
                 navigate('/')
             } else {
-                // 公開用戶：顯示成功畫面
                 setSuccessInfo({
                     ticketNo: data.ticket.ticket_no,
                     phone: `09${phone}`,
                 })
             }
         } catch (err) {
-            console.error('[handleSubmit] ERROR:', err.message, err.stack)
-            console.error('[handleSubmit] Error type:', err.constructor.name)
+            addDebug(`ERROR: [${err.constructor.name}] ${err.message}`)
             alert(`❌ ${err.message}`)
         }
         setSubmitting(false)
-        console.log('[handleSubmit] ===== END =====')
+        addDebug('===== SUBMIT END =====')
     }
 
     const steps = ['故障資訊', '聯絡方式', '確認送出']
@@ -359,6 +359,19 @@ export default function RepairForm() {
     return (
         <div className="container">
             <h1>🔧 報修填單</h1>
+
+            {/* 🔧 Debug panel - visible in LINE in-app browser */}
+            {debugLogs.length > 0 && (
+                <div style={{
+                    background: '#1a1a2e', color: '#0f0', fontSize: '11px',
+                    fontFamily: 'monospace', padding: '8px', borderRadius: '8px',
+                    marginBottom: '12px', maxHeight: '150px', overflow: 'auto',
+                    border: '1px solid #333', whiteSpace: 'pre-wrap',
+                }}>
+                    <div style={{ color: '#ff0', marginBottom: '4px' }}>🐛 Debug Log:</div>
+                    {debugLogs.map((log, i) => <div key={i}>{log}</div>)}
+                </div>
+            )}
 
             <div style={{ marginBottom: '16px', display: 'flex', gap: '10px' }}>
                 {isLoggedIn && <Link to="/" className="btn btn-secondary">← 回到首頁</Link>}
