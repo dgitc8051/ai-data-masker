@@ -24,7 +24,11 @@ class TicketController extends Controller
     {
         $user = $request->user();
 
-        $query = Ticket::with('assignedUsers:id,name')->latest();
+        $query = Ticket::with([
+            'assignedUsers' => function ($q) {
+                $q->select('users.id', 'users.name')->withPivot('role');
+            }
+        ])->latest();
 
         // 師傅看：被指派給自己的 + 已派工但尚未接案的（搶單用）
         if ($user && $user->role === 'worker') {
@@ -76,11 +80,9 @@ class TicketController extends Controller
             });
         }
 
-        // 附加 primary_technician 讓前端判斷狀態
+        // 附加 primary_technician 讓前端判斷狀態（有指派師傅=已派工，無指派=未接案）
         $tickets->each(function ($ticket) {
-            $primary = $ticket->assignedUsers->first(function ($u) {
-                return $u->pivot->role === 'primary';
-            });
+            $primary = $ticket->assignedUsers->first();
             $ticket->primary_technician = $primary ? ['id' => $primary->id, 'name' => $primary->name] : null;
         });
 
