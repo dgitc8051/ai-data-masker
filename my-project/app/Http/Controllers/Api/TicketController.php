@@ -397,14 +397,44 @@ class TicketController extends Controller
         $ticket->status = 'dispatched';
         $ticket->save();
 
-        // LINE 推播通知師傅
+        // LINE 推播通知
         try {
             $lineService = new LineNotifyService();
-            $lineUserIds = User::whereIn('id', $technicianIds)
-                ->whereNotNull('line_user_id')
-                ->pluck('line_user_id')
-                ->toArray();
-            $lineService->notifyDispatch($payload, $lineUserIds);
+
+            if (!empty($technicianIds)) {
+                // 有指派 → 通知被指派的師傅（完整資訊）
+                $lineUserIds = User::whereIn('id', $technicianIds)
+                    ->whereNotNull('line_user_id')
+                    ->pluck('line_user_id')
+                    ->toArray();
+                $lineService->notifyDispatch($payload, $lineUserIds);
+            } else {
+                // 未指派 → 通知所有師傅（搶單，隱藏敏感資訊）
+                $allWorkerLineIds = User::where('role', 'worker')
+                    ->whereNotNull('line_user_id')
+                    ->pluck('line_user_id')
+                    ->toArray();
+
+                if (!empty($allWorkerLineIds)) {
+                    // 只顯示區域（取地址前面的縣市區）
+                    $area = mb_substr($ticket->address ?? '', 0, 6) . '...';
+
+                    $grabMsg = "🔔【新案件可搶單】{$ticket->ticket_no}（{$ticket->category}）{$urgentTag}\n";
+                    if ($calendarSlots) {
+                        $grabMsg .= "客戶偏好時段：\n{$calendarSlots}\n";
+                    } elseif ($payload['preferred_time_slot'] && $payload['preferred_time_slot'] !== '待定') {
+                        $grabMsg .= "偏好時段：{$payload['preferred_time_slot']}\n";
+                    }
+                    $grabMsg .= "區域：{$area}\n";
+                    $grabMsg .= "問題：{$payload['description']}\n";
+                    $grabMsg .= "👉 請至工單系統接案\n";
+                    $grabMsg .= "（先搶先得，請盡速處理）";
+
+                    foreach ($allWorkerLineIds as $lid) {
+                        $lineService->pushMessage($lid, $grabMsg);
+                    }
+                }
+            }
         } catch (\Exception $e) {
             \Log::warning('LINE 派工通知失敗: ' . $e->getMessage());
         }
