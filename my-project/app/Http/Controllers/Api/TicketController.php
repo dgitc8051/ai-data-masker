@@ -76,6 +76,14 @@ class TicketController extends Controller
             });
         }
 
+        // 附加 primary_technician 讓前端判斷狀態
+        $tickets->each(function ($ticket) {
+            $primary = $ticket->assignedUsers->first(function ($u) {
+                return $u->pivot->role === 'primary';
+            });
+            $ticket->primary_technician = $primary ? ['id' => $primary->id, 'name' => $primary->name] : null;
+        });
+
         return response()->json($tickets);
     }
 
@@ -790,7 +798,7 @@ class TicketController extends Controller
             );
 
             // 通知客戶：師傅已接案 + 確切時間 + 預估費用 + 車馬費說明 + 確認連結
-            $frontendUrl = config('app.frontend_url', 'https://ai-data-masker-production-fda9.up.railway.app');
+            $frontendUrl = env('FRONTEND_URL', 'https://ai-data-masker-production-fda9.up.railway.app');
             $pricingUrl = $frontendUrl . '/pricing';
             $confirmUrl = $frontendUrl . '/track';
 

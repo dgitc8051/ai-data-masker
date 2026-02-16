@@ -1245,6 +1245,51 @@ export default function TicketDetail() {
                                         style={{ width: '100%', padding: '14px', fontSize: '16px', background: (acceptTime && acceptEstimate) ? '#06b6d4' : '#9ca3af', cursor: (acceptTime && acceptEstimate) ? 'pointer' : 'not-allowed' }}>
                                         {saving ? '⏳ ...' : '📥 確認接案'}
                                     </button>
+
+                                    {/* 師傅無法接案 → 退回 */}
+                                    <button
+                                        onClick={() => setSelectedStatus(selectedStatus === 'decline' ? '' : 'decline')}
+                                        style={{ width: '100%', padding: '10px', fontSize: '13px', background: '#fef2f2', color: '#991b1b', border: '1px solid #fca5a5', borderRadius: '8px', cursor: 'pointer', marginTop: '8px' }}
+                                    >
+                                        ❌ 無法接案（退回客服）
+                                    </button>
+                                    {selectedStatus === 'decline' && (
+                                        <div style={{ padding: '12px', background: '#fef2f2', borderRadius: '0 0 8px 8px', border: '1px solid #fca5a5', borderTop: 'none' }}>
+                                            <div style={{ fontSize: '12px', color: '#991b1b', marginBottom: '6px' }}>請說明無法接案的原因：</div>
+                                            <textarea
+                                                value={cancelReason}
+                                                onChange={e => setCancelReason(e.target.value)}
+                                                placeholder="例：當天已排滿、與客戶時間無法配合..."
+                                                rows={2}
+                                                style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #fca5a5', fontSize: '14px', resize: 'vertical', boxSizing: 'border-box' }}
+                                            />
+                                            <button
+                                                onClick={async () => {
+                                                    if (!cancelReason) return
+                                                    setSaving(true)
+                                                    try {
+                                                        await authFetch(`${API}/api/tickets/${ticket.id}/cancel-accept`, {
+                                                            method: 'POST',
+                                                            headers: { 'Content-Type': 'application/json' },
+                                                            body: JSON.stringify({ cancel_reason: cancelReason }),
+                                                        })
+                                                        setCancelReason('')
+                                                        setSelectedStatus('')
+                                                        fetchTicket()
+                                                    } catch (err) {
+                                                        alert(err.message)
+                                                    } finally {
+                                                        setSaving(false)
+                                                    }
+                                                }}
+                                                disabled={!cancelReason || saving}
+                                                className="btn"
+                                                style={{ marginTop: '8px', width: '100%', padding: '10px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '8px' }}
+                                            >
+                                                確認退回
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
