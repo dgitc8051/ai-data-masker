@@ -654,8 +654,9 @@ class TicketController extends Controller
     }
 
     /**
-     * 師傅接案
+     * 師傅接案（含選定維修時間）
      * POST /api/tickets/{id}/accept
+     * body: { selected_time: "2025-02-17 15:00" }
      */
     public function acceptTicket(Request $request, $id)
     {
@@ -666,13 +667,35 @@ class TicketController extends Controller
 
         $user = $request->user();
 
+        // 強制要求師傅手機號碼
+        if (empty($user->phone)) {
+            return response()->json([
+                'message' => '請先設定手機號碼才能接案。請在 LINE 輸入「設定電話 09xxxxxxxx」',
+                'error_type' => 'phone_required',
+            ], 422);
+        }
+
         if ($ticket->status !== 'dispatched') {
             return response()->json(['message' => '此工單目前無法接案'], 422);
         }
 
+        // 要求選定維修時間
+        $request->validate([
+            'selected_time' => 'required|string',
+        ]);
+
+        $selectedTime = $request->input('selected_time');
+
         // 更新狀態
         $ticket->status = 'in_progress';
         $ticket->accepted_at = now();
+        $ticket->worker_selected_slot = [
+            'datetime' => $selectedTime,
+            'label' => $selectedTime,
+            'selected_by' => 'worker',
+            'selected_by_name' => $user->name,
+            'selected_at' => now()->toISOString(),
+        ];
         $ticket->save();
 
         // 如果未指派，自動指派給接案師傅
@@ -687,20 +710,20 @@ class TicketController extends Controller
                 ->whereNotNull('line_user_id')
                 ->pluck('line_user_id')
                 ->toArray();
-            $workerPhone = $user->phone ? "（{$user->phone}）" : '';
             $lineService->pushToMultiple(
                 $adminLineIds,
-                "📥 {$ticket->ticket_no} 已接案\n師傅：{$user->name}{$workerPhone}"
+                "📥 {$ticket->ticket_no} 已接案\n師傅：{$user->name}（{$user->phone}）\n🗓️ 預定時間：{$selectedTime}"
             );
 
-            // 通知客戶：師傅已接案
+            // 通知客戶：師傅已接案 + 確切時間 + 電話
             if ($ticket->customer_line_id) {
-                $workerContact = $user->phone ? "\n📞 師傅電話：{$user->phone}" : '';
                 $lineService->pushMessage(
                     $ticket->customer_line_id,
                     "👷 您的維修單 {$ticket->ticket_no} 已有師傅接案！\n\n"
-                    . "負責師傅：{$user->name}{$workerContact}\n"
-                    . "師傅將盡快與您聯繫安排時間。"
+                    . "負責師傅：{$user->name}\n"
+                    . "📞 師傅電話：{$user->phone}\n"
+                    . "🗓️ 預定維修時間：{$selectedTime}\n\n"
+                    . "如需改期請聯繫師傅或客服。"
                 );
             }
         } catch (\Exception $e) {

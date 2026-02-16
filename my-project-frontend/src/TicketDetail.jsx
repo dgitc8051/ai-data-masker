@@ -65,6 +65,8 @@ export default function TicketDetail() {
     // 日曆排程
     const [workerSlotIndex, setWorkerSlotIndex] = useState(null)
     const [rescheduleReason, setRescheduleReason] = useState('')
+    // 接案時間選擇
+    const [acceptTime, setAcceptTime] = useState('')
 
     const isAdmin = user?.role === 'admin'
     const isRepairTicket = ticket?.category != null
@@ -186,12 +188,31 @@ export default function TicketDetail() {
         fetchTicket()
     }
 
-    // 師傅接案
+    // 師傅接案（含選定時間）
     const handleAccept = async () => {
-        if (!confirm('確定要接案嗎？')) return
+        if (!acceptTime) {
+            alert('請先選擇預定維修時間')
+            return
+        }
+        if (!confirm(`確定要接案嗎？\n預定維修時間：${acceptTime}`)) return
         setSaving(true)
         try {
-            await authFetch(`${API}/api/tickets/${id}/accept`, { method: 'POST' })
+            const res = await authFetch(`${API}/api/tickets/${id}/accept`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ selected_time: acceptTime }),
+            })
+            const data = await res.json()
+            if (!res.ok) {
+                if (data.error_type === 'phone_required') {
+                    alert('❌ 請先設定手機號碼！\n\n請在 LINE 輸入：設定電話 09xxxxxxxx')
+                } else {
+                    alert(data.message || '接案失敗')
+                }
+                setSaving(false)
+                return
+            }
+            setAcceptTime('')
             fetchTicket()
         } catch (err) {
             alert('接案失敗')
@@ -1055,13 +1076,47 @@ export default function TicketDetail() {
 
                         <div style={{ display: 'grid', gap: '10px' }}>
 
-                            {/* 已派工 → 接案 + 提供時段 */}
+                            {/* 已派工 → 選擇時間 + 接案 */}
                             {ticket.status === 'dispatched' && !ticket.accepted_at && (
-                                <button onClick={handleAccept} disabled={saving}
-                                    className="btn btn-primary"
-                                    style={{ padding: '16px', fontSize: '16px', background: '#06b6d4' }}>
-                                    {saving ? '⏳ ...' : '📥 確認接案'}
-                                </button>
+                                <div style={{ background: '#f0fdfa', border: '1px solid #06b6d4', borderRadius: '10px', padding: '16px' }}>
+                                    <div style={{ fontWeight: 'bold', color: '#0e7490', marginBottom: '10px', fontSize: '15px' }}>📥 接案並選定維修時間</div>
+
+                                    {/* 顯示客戶偏好時段參考 */}
+                                    {ticket.customer_preferred_slots?.length > 0 && (
+                                        <div style={{ marginBottom: '12px', padding: '10px', background: '#ecfeff', borderRadius: '8px', border: '1px solid #a5f3fc' }}>
+                                            <div style={{ fontSize: '12px', color: '#155e75', marginBottom: '6px', fontWeight: '600' }}>📋 客戶可配合時段：</div>
+                                            {ticket.customer_preferred_slots.map((slot, i) => (
+                                                <div key={i} style={{ fontSize: '13px', color: '#0e7490', padding: '2px 0' }}>
+                                                    • {slot.label || `${slot.date} ${slot.period}`}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* 選擇具體維修時間 */}
+                                    <div style={{ marginBottom: '12px' }}>
+                                        <label style={{ display: 'block', fontSize: '13px', color: '#155e75', marginBottom: '6px', fontWeight: '600' }}>選擇維修時間：</label>
+                                        <input
+                                            type="datetime-local"
+                                            className="form-input"
+                                            value={acceptTime}
+                                            onChange={e => setAcceptTime(e.target.value)}
+                                            style={{ width: '100%', padding: '10px', fontSize: '15px', borderRadius: '8px', border: '1px solid #06b6d4' }}
+                                        />
+                                    </div>
+
+                                    {acceptTime && (
+                                        <div style={{ padding: '8px 12px', background: '#d1fae5', borderRadius: '6px', marginBottom: '12px', fontSize: '13px', color: '#065f46' }}>
+                                            ✅ 預定：{new Date(acceptTime).toLocaleString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                        </div>
+                                    )}
+
+                                    <button onClick={handleAccept} disabled={saving || !acceptTime}
+                                        className="btn btn-primary"
+                                        style={{ width: '100%', padding: '14px', fontSize: '16px', background: acceptTime ? '#06b6d4' : '#9ca3af', cursor: acceptTime ? 'pointer' : 'not-allowed' }}>
+                                        {saving ? '⏳ ...' : '📥 確認接案'}
+                                    </button>
+                                </div>
                             )}
 
                             {/* 已接案（dispatched + accepted_at）→ 提供時段 */}
