@@ -33,6 +33,7 @@ class Ticket extends Model
         'priority',
         'purpose',
         'created_by',
+        'source',
         'assigned_to',
         'stats',
         'completed_at',

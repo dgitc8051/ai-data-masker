@@ -49,6 +49,12 @@ export default function RepairForm() {
 
     // LIFF 初始化（強制 LINE 登入 → 註冊客戶 → 自動帶入舊資料）
     useEffect(() => {
+        // 管理員已登入 → 跳過 LIFF，直接進入填單
+        if (isLoggedIn) {
+            setLiffReady(true)
+            return
+        }
+
         const liffId = import.meta.env.VITE_LIFF_ID
         if (!liffId) {
             setLiffError('系統設定錯誤（LIFF ID 未設定），請聯繫管理員')
@@ -431,8 +437,8 @@ export default function RepairForm() {
         )
     }
 
-    // ─── LIFF 阻擋畫面 ───
-    if (!liffReady) {
+    // ─── LIFF 阻擋畫面（只對非登入用戶生效） ───
+    if (!isLoggedIn && !liffReady) {
         return (
             <div className="container" style={{ textAlign: 'center', padding: '80px 20px' }}>
                 <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔄</div>
@@ -442,7 +448,7 @@ export default function RepairForm() {
         )
     }
 
-    if (liffError || !lineUserId) {
+    if (!isLoggedIn && (liffError || !lineUserId)) {
         return (
             <div className="container" style={{ textAlign: 'center', padding: '80px 20px' }}>
                 <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
@@ -463,6 +469,18 @@ export default function RepairForm() {
         <div className="container">
             <LiffCloseButton />
             <h1>🔧 報修填單</h1>
+
+            {/* 客服代客建單提示 */}
+            {isLoggedIn && (
+                <div style={{
+                    padding: '10px 16px', marginBottom: '16px', borderRadius: '10px',
+                    background: '#fef3c7', border: '1px solid #fcd34d',
+                    fontSize: '13px', color: '#92400e', fontWeight: '600',
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                }}>
+                    📌 客服代客建單模式 — 請手動輸入客戶資料
+                </div>
+            )}
 
             {/* Debug panel - 只在 URL 帶 ?debug=1 時顯示 */}
             {debugLogs.length > 0 && new URLSearchParams(window.location.search).get('debug') === '1' && (

@@ -133,7 +133,8 @@ class TicketController extends Controller
                 'is_urgent' => $request->boolean('is_urgent', false),
                 'priority' => $request->boolean('is_urgent') ? 'high' : $request->input('priority', 'medium'),
                 'status' => 'new',
-                'created_by' => $user ? $user->name : ($request->input('customer_name', '匿名') . '(客戶)'),
+                'source' => ($user && $user->role === 'admin') ? 'admin' : 'line',
+                'created_by' => $user ? ($user->role === 'admin' ? $user->name . '(客服代建)' : $user->name) : ($request->input('customer_name', '匿名') . '(客戶)'),
             ]);
 
             // 同步更新 LINE 客戶名冊（用於回頭客自動帶入）
@@ -427,6 +428,10 @@ class TicketController extends Controller
                     ->pluck('line_user_id')
                     ->toArray();
                 $lineService->notifyDispatch($payload, $lineUserIds);
+                // 客服代客預約額外提示
+                if ($ticket->source === 'admin') {
+                    $lineService->pushToMultiple($lineUserIds, "📌 此單為客服代客預約\n客戶無 LINE，請主動電話聯繫：{$ticket->phone}");
+                }
             } else {
                 // 未指派 → 通知所有師傅（搶單，隱藏敏感資訊）
                 $allWorkerLineIds = User::where('role', 'worker')
@@ -446,6 +451,9 @@ class TicketController extends Controller
                     }
                     $grabMsg .= "區域：{$area}\n";
                     $grabMsg .= "問題：{$payload['description']}\n";
+                    if ($ticket->source === 'admin') {
+                        $grabMsg .= "📌 客服代客預約（客戶無 LINE，請電話聯繫）\n";
+                    }
                     $grabMsg .= "👉 請至工單系統接案\n";
                     $grabMsg .= "（先搶先得，請盡速處理）";
 

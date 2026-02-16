@@ -182,6 +182,9 @@ export default function TicketList() {
                                             {ticket.is_urgent && (
                                                 <span style={{ fontSize: '12px' }}>🔴</span>
                                             )}
+                                            {ticket.source === 'admin' && (
+                                                <span style={{ padding: '2px 6px', borderRadius: '8px', fontSize: '10px', background: '#fef3c7', color: '#92400e', fontWeight: 'bold' }}>📌 代客</span>
+                                            )}
                                         </div>
                                         <span style={{
                                             padding: '3px 10px', borderRadius: '12px', fontSize: '11px',

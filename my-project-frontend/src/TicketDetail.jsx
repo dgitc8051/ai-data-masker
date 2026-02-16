@@ -367,6 +367,11 @@ export default function TicketDetail() {
                             </span>
                         )}
                         {ticket.is_urgent && <span style={{ fontSize: '14px' }}>🔴 急件</span>}
+                        {ticket.source === 'admin' && (
+                            <span style={{ padding: '3px 10px', borderRadius: '10px', fontSize: '12px', background: '#fef3c7', color: '#92400e', fontWeight: 'bold' }}>
+                                📌 客服代客預約
+                            </span>
+                        )}
                     </div>
                     <h2 style={{ margin: 0 }}>{ticket.title}</h2>
                 </div>
