@@ -1927,14 +1927,7 @@ class TicketController extends Controller
                 ->toArray();
             $lineService->pushToMultiple($adminLineIds, $msg);
 
-            // 通知客戶：師傅更換中
-            if ($ticket->customer_line_id) {
-                $lineService->pushMessage(
-                    $ticket->customer_line_id,
-                    "📋 您的維修單 {$ticket->ticket_no}\n原師傅因故無法接手，我們正在為您重新安排師傅。\n\n"
-                    . "造成不便敬請見諒，安排完成後將再通知您。"
-                );
-            }
+            // 不通知客戶（內部調度，客戶不需知道師傅更換）
         } catch (\Exception $e) {
             \Log::warning('LINE 師傅取消接單通知失敗: ' . $e->getMessage());
         }
