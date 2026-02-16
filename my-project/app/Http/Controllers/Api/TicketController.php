@@ -744,16 +744,19 @@ class TicketController extends Controller
             return response()->json(['message' => '此工單目前無法接案'], 422);
         }
 
-        // 要求選定維修時間
+        // 要求選定維修時間 + 預估費用
         $request->validate([
             'selected_time' => 'required|string',
+            'quoted_amount' => 'required|numeric|min:0',
         ]);
 
         $selectedTime = $request->input('selected_time');
+        $quotedAmount = $request->input('quoted_amount');
 
         // 更新狀態
         $ticket->status = 'in_progress';
         $ticket->accepted_at = now();
+        $ticket->quoted_amount = $quotedAmount;
         $ticket->worker_selected_slot = [
             'datetime' => $selectedTime,
             'label' => $selectedTime,
@@ -783,17 +786,22 @@ class TicketController extends Controller
                 ->toArray();
             $lineService->pushToMultiple(
                 $adminLineIds,
-                "📥 {$ticket->ticket_no} 已接案\n師傅：{$user->name}（{$user->phone}）\n🗓️ 預定時間：{$selectedTime}"
+                "📥 {$ticket->ticket_no} 已接案\n師傅：{$user->name}（{$user->phone}）\n🗓️ 預定時間：{$selectedTime}\n💰 預估費用：\${$quotedAmount}"
             );
 
-            // 通知客戶：師傅已接案 + 確切時間 + 電話
+            // 通知客戶：師傅已接案 + 確切時間 + 預估費用 + 車馬費說明
             if ($ticket->customer_line_id) {
+                $pricingUrl = config('app.frontend_url', 'https://ai-data-masker-production-fda9.up.railway.app') . '/pricing';
                 $lineService->pushMessage(
                     $ticket->customer_line_id,
-                    "👷 您的維修單 {$ticket->ticket_no} 已有師傅接案！\n\n"
-                    . "負責師傅：{$user->name}\n"
+                    "📋 您的維修單 {$ticket->ticket_no} 已安排！\n\n"
+                    . "👨‍🔧 師傅：{$user->name}\n"
                     . "📞 師傅電話：{$user->phone}\n"
-                    . "🗓️ 預定維修時間：{$selectedTime}\n\n"
+                    . "🗓️ 維修時間：{$selectedTime}\n"
+                    . "💰 預估費用：\${$quotedAmount}\n\n"
+                    . "⚠️ 以上費用僅供參考，實際金額依現場狀況為準。\n"
+                    . "⚠️ 師傅到場後若不維修，須酌收基礎檢測費，\n"
+                    . "　詳見費用說明：{$pricingUrl}\n\n"
                     . "如需改期請聯繫師傅或客服。"
                 );
             }

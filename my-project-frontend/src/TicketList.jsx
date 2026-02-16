@@ -154,7 +154,7 @@ export default function TicketList() {
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {tickets.map(ticket => {
-                        const displayStatus = (ticket.status === 'dispatched' && !ticket.accepted_at) ? 'unaccepted' : ticket.status
+                        const displayStatus = (ticket.status === 'dispatched' && !ticket.accepted_at && !ticket.primary_technician) ? 'unaccepted' : ticket.status
                         const st = STATUS_MAP[displayStatus] || STATUS_MAP.pending
                         const catColor = CATEGORY_COLORS[ticket.category] || '#6b7280'
 

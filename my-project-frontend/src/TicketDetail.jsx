@@ -67,6 +67,7 @@ export default function TicketDetail() {
     const [rescheduleReason, setRescheduleReason] = useState('')
     // 接案時間選擇
     const [acceptTime, setAcceptTime] = useState('')
+    const [acceptEstimate, setAcceptEstimate] = useState('')
 
     const isAdmin = user?.role === 'admin'
     const isRepairTicket = ticket?.category != null
@@ -187,19 +188,23 @@ export default function TicketDetail() {
         fetchTicket()
     }
 
-    // 師傅接案（含選定時間）
+    // 師傅接案（含選定時間 + 預估費用）
     const handleAccept = async () => {
         if (!acceptTime) {
             alert('請先選擇預定維修時間')
             return
         }
-        if (!confirm(`確定要接案嗎？\n預定維修時間：${acceptTime}`)) return
+        if (!acceptEstimate || Number(acceptEstimate) <= 0) {
+            alert('請填寫預估費用')
+            return
+        }
+        if (!confirm(`確定要接案嗎？\n預定維修時間：${acceptTime}\n預估費用：$${acceptEstimate}`)) return
         setSaving(true)
         try {
             const res = await authFetch(`${API}/api/tickets/${id}/accept`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ selected_time: acceptTime }),
+                body: JSON.stringify({ selected_time: acceptTime, quoted_amount: Number(acceptEstimate) }),
             })
             const data = await res.json()
             if (!res.ok) {
@@ -212,6 +217,7 @@ export default function TicketDetail() {
                 return
             }
             setAcceptTime('')
+            setAcceptEstimate('')
             fetchTicket()
         } catch (err) {
             alert('接案失敗')
@@ -1048,11 +1054,15 @@ export default function TicketDetail() {
                             {ticket.address && (
                                 <div style={rowStyle}>
                                     <span style={labelStyle}>地址</span>
-                                    <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ticket.address)}`}
-                                        target="_blank" rel="noopener noreferrer"
-                                        style={{ color: '#4f46e5', fontWeight: 'bold', textDecoration: 'none' }}>
-                                        📍 {ticket.address}
-                                    </a>
+                                    {ticket.accepted_at ? (
+                                        <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ticket.address)}`}
+                                            target="_blank" rel="noopener noreferrer"
+                                            style={{ color: '#4f46e5', fontWeight: 'bold', textDecoration: 'none' }}>
+                                            📍 {ticket.address}
+                                        </a>
+                                    ) : (
+                                        <span style={{ color: '#6b7280' }}>📍 {ticket.address.substring(0, 6)}...（接案後顯示完整地址）</span>
+                                    )}
                                 </div>
                             )}
                             {ticket.scheduled_at && (
@@ -1067,6 +1077,36 @@ export default function TicketDetail() {
                                 <div style={{ fontWeight: 'bold', marginBottom: '4px', fontSize: '13px' }}>問題摘要</div>
                                 <div style={{ whiteSpace: 'pre-wrap' }}>{ticket.description_summary}</div>
                             </div>
+                        )}
+                        {ticket.source === 'admin' && (
+                            <div style={{ marginTop: '12px', padding: '8px 14px', background: '#fef3c7', borderRadius: '8px', border: '1px solid #fcd34d', fontSize: '13px', color: '#92400e', fontWeight: '600' }}>
+                                📌 客服代客預約 — 客戶無 LINE，請主動電話聯繫
+                            </div>
+                        )}
+                    </div>
+
+                    {/* 問題描述+照片（師傅也看得到） */}
+                    <div className="detail-card">
+                        <h3>🔧 問題描述</h3>
+                        {ticket.description_raw && (
+                            <div style={{ padding: '12px 16px', background: '#f9fafb', borderRadius: '8px', marginBottom: '12px', whiteSpace: 'pre-wrap' }}>
+                                {ticket.description_raw}
+                            </div>
+                        )}
+                        {ticket.attachments && ticket.attachments.filter(a => a.file_type !== 'completion').length > 0 && (
+                            <div>
+                                <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px' }}>📷 現場照片</div>
+                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                    {ticket.attachments.filter(a => a.file_type !== 'completion').map(att => (
+                                        <img key={att.id} src={`${API}/api/attachments/${att.id}/image`} alt={att.original_name}
+                                            style={{ width: '120px', height: '120px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer', border: '1px solid #e5e7eb' }}
+                                            onClick={() => window.open(`${API}/api/attachments/${att.id}/image`, '_blank')} />
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        {!ticket.description_raw && (!ticket.attachments || ticket.attachments.filter(a => a.file_type !== 'completion').length === 0) && (
+                            <p style={{ color: '#9ca3af', fontSize: '13px' }}>無問題描述或照片</p>
                         )}
                     </div>
 
@@ -1181,9 +1221,28 @@ export default function TicketDetail() {
                                         </div>
                                     )}
 
-                                    <button onClick={handleAccept} disabled={saving || !acceptTime}
+                                    {/* 預估費用（必填） */}
+                                    <div style={{ marginBottom: '12px' }}>
+                                        <label style={{ display: 'block', fontSize: '13px', color: '#155e75', marginBottom: '6px', fontWeight: '600' }}>💰 預估費用（必填）：</label>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <span style={{ fontSize: '16px', fontWeight: 'bold' }}>$</span>
+                                            <input
+                                                type="number"
+                                                className="form-input"
+                                                placeholder="例：3000"
+                                                value={acceptEstimate}
+                                                onChange={e => setAcceptEstimate(e.target.value)}
+                                                style={{ flex: 1, padding: '10px', fontSize: '15px', borderRadius: '8px', border: '1px solid #06b6d4' }}
+                                            />
+                                        </div>
+                                        <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                                            ❇️ 僅供參考，實際金額依現場狀況為準
+                                        </div>
+                                    </div>
+
+                                    <button onClick={handleAccept} disabled={saving || !acceptTime || !acceptEstimate}
                                         className="btn btn-primary"
-                                        style={{ width: '100%', padding: '14px', fontSize: '16px', background: acceptTime ? '#06b6d4' : '#9ca3af', cursor: acceptTime ? 'pointer' : 'not-allowed' }}>
+                                        style={{ width: '100%', padding: '14px', fontSize: '16px', background: (acceptTime && acceptEstimate) ? '#06b6d4' : '#9ca3af', cursor: (acceptTime && acceptEstimate) ? 'pointer' : 'not-allowed' }}>
                                         {saving ? '⏳ ...' : '📥 確認接案'}
                                     </button>
                                 </div>
