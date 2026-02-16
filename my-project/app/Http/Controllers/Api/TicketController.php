@@ -26,10 +26,15 @@ class TicketController extends Controller
 
         $query = Ticket::with('assignedUsers:id,name')->latest();
 
-        // 師傅只看被指派給自己的
+        // 師傅看：被指派給自己的 + 已派工但尚未接案的（搶單用）
         if ($user && $user->role === 'worker') {
-            $query->whereHas('assignedUsers', function ($q2) use ($user) {
-                $q2->where('users.id', $user->id);
+            $query->where(function ($q) use ($user) {
+                $q->whereHas('assignedUsers', function ($q2) use ($user) {
+                    $q2->where('users.id', $user->id);
+                })->orWhere(function ($q2) {
+                    $q2->where('status', 'dispatched')
+                        ->whereNull('accepted_at');
+                });
             });
         }
 
