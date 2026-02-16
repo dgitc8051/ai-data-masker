@@ -17,7 +17,7 @@ class UserController extends Controller
      */
     public function index()
     {
-        $users = User::select('id', 'name', 'username', 'role', 'line_user_id', 'line_display_name', 'created_at')
+        $users = User::select('id', 'name', 'username', 'role', 'phone', 'line_user_id', 'line_display_name', 'created_at')
             ->orderBy('created_at', 'desc')
             ->get()
             ->map(function ($u) {
@@ -26,6 +26,7 @@ class UserController extends Controller
                     'name' => $u->name,
                     'username' => $u->username,
                     'role' => $u->role,
+                    'phone' => $u->phone,
                     'line_bound' => !empty($u->line_user_id),
                     'line_display_name' => $u->line_display_name,
                     'created_at' => $u->created_at,
@@ -64,6 +65,7 @@ class UserController extends Controller
             'username' => 'required|string|max:255|unique:users',
             'password' => 'required|string|min:3',
             'role' => 'in:admin,worker',
+            'phone' => 'nullable|string|max:20',
         ]);
 
         $user = User::create([
@@ -71,6 +73,7 @@ class UserController extends Controller
             'username' => $request->username,
             'password' => Hash::make($request->password),
             'role' => $request->input('role', 'worker'),
+            'phone' => $request->input('phone'),
         ]);
 
         return response()->json([
@@ -80,6 +83,7 @@ class UserController extends Controller
                 'name' => $user->name,
                 'username' => $user->username,
                 'role' => $user->role,
+                'phone' => $user->phone,
             ],
         ], 201);
     }
@@ -162,6 +166,33 @@ class UserController extends Controller
 
         return response()->json([
             'message' => "已解除「{$user->name}」的 LINE 綁定",
+        ]);
+    }
+
+    /**
+     * 更新手機號碼（管理員用）
+     * PATCH /api/users/{id}/phone
+     */
+    public function updatePhone(Request $request, $id)
+    {
+        if ($request->user()->role !== 'admin') {
+            return response()->json(['message' => '權限不足'], 403);
+        }
+
+        $request->validate([
+            'phone' => 'required|string|max:20',
+        ]);
+
+        $user = User::find($id);
+        if (!$user) {
+            return response()->json(['message' => '找不到此使用者'], 404);
+        }
+
+        $user->update(['phone' => $request->input('phone')]);
+
+        return response()->json([
+            'message' => "已更新「{$user->name}」的手機號碼",
+            'phone' => $user->phone,
         ]);
     }
 }

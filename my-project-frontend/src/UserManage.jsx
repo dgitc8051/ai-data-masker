@@ -7,7 +7,7 @@ export default function UserManage() {
     const { authFetch, API, user: currentUser } = useAuth()
     const [users, setUsers] = useState([])
     const [showForm, setShowForm] = useState(false)
-    const [form, setForm] = useState({ name: '', username: '', password: '', role: 'worker' })
+    const [form, setForm] = useState({ name: '', username: '', password: '', role: 'worker', phone: '' })
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(true)
     const [pwModal, setPwModal] = useState(null) // { id, name }
@@ -34,7 +34,7 @@ export default function UserManage() {
             const data = await res.json()
             if (!res.ok) throw new Error(data.message || '建立失敗')
             setShowForm(false)
-            setForm({ name: '', username: '', password: '', role: 'worker' })
+            setForm({ name: '', username: '', password: '', role: 'worker', phone: '' })
             loadUsers()
             alert(`✅ 使用者「${data.user.name}」已建立`)
         } catch (err) {
@@ -88,6 +88,27 @@ export default function UserManage() {
         }
     }
 
+    const handleUpdatePhone = async (id, name, currentPhone) => {
+        const phone = prompt(`請輸入「${name}」的手機號碼：`, currentPhone || '')
+        if (phone === null) return
+        if (!phone.trim()) {
+            alert('手機號碼不可空白')
+            return
+        }
+        try {
+            const res = await authFetch(`${API}/api/users/${id}/phone`, {
+                method: 'PATCH',
+                body: JSON.stringify({ phone: phone.trim() }),
+            })
+            const data = await res.json()
+            if (!res.ok) throw new Error(data.message)
+            loadUsers()
+            alert(`✅ ${data.message}`)
+        } catch (err) {
+            alert(`❌ ${err.message}`)
+        }
+    }
+
     return (
         <div className="container">
             <h1 style={{ textAlign: 'center' }}>👥 使用者管理</h1>
@@ -132,6 +153,13 @@ export default function UserManage() {
                                 </select>
                             </div>
                         </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                            <div className="form-group" style={{ margin: 0 }}>
+                                <label>手機號碼</label>
+                                <input type="tel" className="form-input" placeholder="09xxxxxxxx"
+                                    value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
+                            </div>
+                        </div>
                         {error && <p style={{ color: '#ef4444', fontSize: '13px', margin: '0 0 12px' }}>❌ {error}</p>}
                         <button type="submit" className="btn btn-primary">✅ 建立使用者</button>
                     </form>
@@ -146,6 +174,7 @@ export default function UserManage() {
                                 <tr style={{ background: '#f9fafb' }}>
                                     <th style={thStyle}>姓名</th>
                                     <th style={thStyle}>帳號</th>
+                                    <th style={thStyle}>手機</th>
                                     <th style={thStyle}>角色</th>
                                     <th style={thStyle}>LINE</th>
                                     <th style={{ ...thStyle, textAlign: 'center' }}>操作</th>
@@ -156,6 +185,13 @@ export default function UserManage() {
                                     <tr key={u.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
                                         <td style={tdStyle}>{u.name}</td>
                                         <td style={{ ...tdStyle, color: '#6b7280' }}>{u.username}</td>
+                                        <td style={tdStyle}>
+                                            {u.phone ? (
+                                                <span style={{ color: '#059669', fontSize: '13px' }}>📞 {u.phone}</span>
+                                            ) : (
+                                                <span style={{ color: '#d1d5db', fontSize: '12px' }}>未設定</span>
+                                            )}
+                                        </td>
                                         <td style={tdStyle}>
                                             <span style={{
                                                 padding: '2px 10px', borderRadius: '20px', fontSize: '12px',
@@ -188,6 +224,11 @@ export default function UserManage() {
                                                     onClick={() => { setPwModal({ id: u.id, name: u.name }); setNewPassword('') }}
                                                     style={btnStyle('#eef2ff', '#4f46e5', '#c7d2fe')}
                                                 >🔑 改密碼</button>
+
+                                                <button
+                                                    onClick={() => handleUpdatePhone(u.id, u.name, u.phone)}
+                                                    style={btnStyle('#f0fdfa', '#059669', '#6ee7b7')}
+                                                >📞 設定手機</button>
 
                                                 {u.line_bound && (
                                                     <button
