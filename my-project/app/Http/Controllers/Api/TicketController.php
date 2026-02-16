@@ -40,7 +40,12 @@ class TicketController extends Controller
 
         // 狀態篩選
         if ($request->has('status') && $request->status !== 'all') {
-            $query->where('status', $request->status);
+            if ($request->status === 'unaccepted') {
+                // 虛擬篩選：已派工但未接案
+                $query->where('status', 'dispatched')->whereNull('accepted_at');
+            } else {
+                $query->where('status', $request->status);
+            }
         }
 
         // 搜尋
