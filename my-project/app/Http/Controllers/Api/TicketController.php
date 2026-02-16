@@ -753,16 +753,19 @@ class TicketController extends Controller
             return response()->json(['message' => '此工單目前無法接案'], 422);
         }
 
-        // 要求選定維修時間
+        // 要求選定維修時間 + 預估費用
         $request->validate([
             'selected_time' => 'required|string',
+            'quoted_amount' => 'required|numeric|min:0',
         ]);
 
         $selectedTime = $request->input('selected_time');
+        $quotedAmount = $request->input('quoted_amount');
 
         // 更新狀態（待客戶確認，不是直接進 in_progress）
         $ticket->status = 'time_proposed';
         $ticket->accepted_at = now();
+        $ticket->quoted_amount = $quotedAmount;
         $ticket->worker_selected_slot = [
             'datetime' => $selectedTime,
             'label' => $selectedTime,
@@ -792,7 +795,7 @@ class TicketController extends Controller
                 ->toArray();
             $lineService->pushToMultiple(
                 $adminLineIds,
-                "📥 {$ticket->ticket_no} 已接案\n師傅：{$user->name}（{$user->phone}）\n🗓️ 預定時間：{$selectedTime}\n⏳ 等待客戶確認中"
+                "📥 {$ticket->ticket_no} 已接案\n師傅：{$user->name}（{$user->phone}）\n🗓️ 預定時間：{$selectedTime}\n💰 預估費用：\${$quotedAmount}\n⏳ 等待客戶確認中"
             );
 
             // 通知客戶：師傅已接案 + 確切時間 + 車馬費說明 + 確認連結
@@ -806,7 +809,9 @@ class TicketController extends Controller
                     "📋 您的維修單 {$ticket->ticket_no} 已安排！\n\n"
                     . "👨‍🔧 師傅：{$user->name}\n"
                     . "📞 師傅電話：{$user->phone}\n"
-                    . "🗓️ 維修時間：{$selectedTime}\n\n"
+                    . "🗓️ 維修時間：{$selectedTime}\n"
+                    . "💰 預估費用：\${$quotedAmount}\n\n"
+                    . "⚠️ 以上費用僅供參考，實際金額依現場狀況為準。\n"
                     . "⚠️ 師傅到場後若不維修，須酌收基礎檢測費，\n"
                     . "　詳見費用說明：{$pricingUrl}\n\n"
                     . "👉 請確認或取消：\n{$confirmUrl}\n"
@@ -816,7 +821,7 @@ class TicketController extends Controller
                 // 無 LINE ID（代客建單）→ 通知管理員代為確認
                 $lineService->pushToMultiple(
                     $adminLineIds,
-                    "📌 {$ticket->ticket_no} 為代客建單，客戶無 LINE\n請客服電話聯繫客戶確認：\n📞 {$ticket->phone}\n🗓️ 時間：{$selectedTime}"
+                    "📌 {$ticket->ticket_no} 為代客建單，客戶無 LINE\n請客服電話聯繫客戶確認：\n📞 {$ticket->phone}\n🗓️ 時間：{$selectedTime}\n💰 預估：\${$quotedAmount}"
                 );
             }
         } catch (\Exception $e) {

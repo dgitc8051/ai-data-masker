@@ -66,6 +66,7 @@ export default function TicketDetail() {
     const [rescheduleReason, setRescheduleReason] = useState('')
     // 接案時間選擇
     const [acceptTime, setAcceptTime] = useState('')
+    const [acceptEstimate, setAcceptEstimate] = useState('')
 
     const isAdmin = user?.role === 'admin'
     const isRepairTicket = ticket?.category != null
@@ -186,19 +187,23 @@ export default function TicketDetail() {
         fetchTicket()
     }
 
-    // 師傅接案（含選定時間）
+    // 師傅接案（含選定時間 + 預估費用）
     const handleAccept = async () => {
         if (!acceptTime) {
             alert('請先選擇預定維修時間')
             return
         }
-        if (!confirm(`確定要接案嗎？\n預定維修時間：${acceptTime}`)) return
+        if (!acceptEstimate || Number(acceptEstimate) <= 0) {
+            alert('請填寫預估費用')
+            return
+        }
+        if (!confirm(`確定要接案嗎？\n預定維修時間：${acceptTime}\n預估費用：$${acceptEstimate}`)) return
         setSaving(true)
         try {
             const res = await authFetch(`${API}/api/tickets/${id}/accept`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ selected_time: acceptTime }),
+                body: JSON.stringify({ selected_time: acceptTime, quoted_amount: Number(acceptEstimate) }),
             })
             const data = await res.json()
             if (!res.ok) {
@@ -211,6 +216,7 @@ export default function TicketDetail() {
                 return
             }
             setAcceptTime('')
+            setAcceptEstimate('')
             fetchTicket()
         } catch (err) {
             alert('接案失敗')
@@ -1215,9 +1221,28 @@ export default function TicketDetail() {
                                     )}
 
 
-                                    <button onClick={handleAccept} disabled={saving || !acceptTime}
+                                    {/* 預估費用（必填） */}
+                                    <div style={{ marginBottom: '12px' }}>
+                                        <label style={{ display: 'block', fontSize: '13px', color: '#155e75', marginBottom: '6px', fontWeight: '600' }}>💰 預估費用（必填）：</label>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <span style={{ fontSize: '16px', fontWeight: 'bold' }}>$</span>
+                                            <input
+                                                type="number"
+                                                className="form-input"
+                                                placeholder="例：3000"
+                                                value={acceptEstimate}
+                                                onChange={e => setAcceptEstimate(e.target.value)}
+                                                style={{ flex: 1, padding: '10px', fontSize: '15px', borderRadius: '8px', border: '1px solid #06b6d4' }}
+                                            />
+                                        </div>
+                                        <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                                            ❇️ 僅供參考，實際金額依現場狀況為準
+                                        </div>
+                                    </div>
+
+                                    <button onClick={handleAccept} disabled={saving || !acceptTime || !acceptEstimate}
                                         className="btn btn-primary"
-                                        style={{ width: '100%', padding: '14px', fontSize: '16px', background: acceptTime ? '#06b6d4' : '#9ca3af', cursor: acceptTime ? 'pointer' : 'not-allowed' }}>
+                                        style={{ width: '100%', padding: '14px', fontSize: '16px', background: (acceptTime && acceptEstimate) ? '#06b6d4' : '#9ca3af', cursor: (acceptTime && acceptEstimate) ? 'pointer' : 'not-allowed' }}>
                                         {saving ? '⏳ ...' : '📥 確認接案'}
                                     </button>
 
@@ -1455,37 +1480,12 @@ export default function TicketDetail() {
                             {/* 處理中 → 報價 + 完工 */}
                             {ticket.status === 'in_progress' && (
                                 <>
+                                    {/* 確認時段提示 */}
                                     {ticket.confirmed_time_slot && (
                                         <div style={{ padding: '10px 14px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #bbf7d0', marginBottom: '10px', fontSize: '13px' }}>
                                             ✅ 確認時段：{ticket.confirmed_time_slot}
                                         </div>
                                     )}
-
-                                    {/* 報價區 */}
-                                    <div style={{ padding: '14px 16px', background: '#f9fafb', borderRadius: '10px' }}>
-                                        <label style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px', display: 'block' }}>
-                                            💰 預估費用
-                                            {ticket.quoted_amount && (
-                                                <span style={{ fontSize: '12px', color: '#10b981', marginLeft: '8px' }}>
-                                                    (已填 ${ticket.quoted_amount}
-                                                    {ticket.quote_confirmed_at ? ' ✅ 客戶已確認' : ' ⏳ 等待客戶確認'})
-                                                </span>
-                                            )}
-                                        </label>
-                                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                            <span style={{ fontSize: '18px', fontWeight: 'bold' }}>$</span>
-                                            <input type="number" className="form-input" style={{ flex: 1 }}
-                                                placeholder="維修金額" value={quoteAmount}
-                                                onChange={e => setQuoteAmount(e.target.value)} />
-                                            <button onClick={handleSubmitQuote} disabled={saving || !quoteAmount}
-                                                className="btn btn-primary" style={{ fontSize: '13px', whiteSpace: 'nowrap' }}>
-                                                {saving ? '⏳' : '記錄費用'}
-                                            </button>
-                                        </div>
-                                        <input type="text" className="form-input" style={{ marginTop: '8px' }}
-                                            placeholder="維修項目及費用說明（選填）" value={quoteDesc}
-                                            onChange={e => setQuoteDesc(e.target.value)} />
-                                    </div>
 
                                     {/* 完工照片 */}
                                     <div style={{ padding: '14px 16px', background: '#f9fafb', borderRadius: '10px' }}>
