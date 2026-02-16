@@ -1593,6 +1593,57 @@ export default function TicketDetail() {
                                             </div>
                                         )}
                                     </div>
+
+                                    {/* 退回客服重新派工 */}
+                                    <button
+                                        onClick={() => setSelectedStatus(selectedStatus === 'worker_return' ? '' : 'worker_return')}
+                                        style={{
+                                            width: '100%', padding: '10px', fontSize: '13px',
+                                            background: '#fef2f2', color: '#991b1b',
+                                            border: '1px solid #fca5a5', borderRadius: '8px', cursor: 'pointer',
+                                            marginTop: '8px',
+                                        }}
+                                    >
+                                        ⚠️ 無法施工，退回客服重新派工
+                                    </button>
+                                    {selectedStatus === 'worker_return' && (
+                                        <div style={{ marginTop: '8px' }}>
+                                            <textarea
+                                                rows="2" className="form-input"
+                                                placeholder="無法施工原因（例：發生車禍、身體不適）"
+                                                value={cancelReason}
+                                                onChange={e => setCancelReason(e.target.value)}
+                                                style={{ marginBottom: '8px' }}
+                                            />
+                                            <button
+                                                onClick={async () => {
+                                                    if (!cancelReason.trim()) { alert('請填寫原因'); return }
+                                                    if (!confirm('確定要退回此工單給客服重新派工嗎？')) return
+                                                    setSaving(true)
+                                                    try {
+                                                        await authFetch(`${API}/api/tickets/${ticket.id}/cancel-accept`, {
+                                                            method: 'POST',
+                                                            headers: { 'Content-Type': 'application/json' },
+                                                            body: JSON.stringify({ cancel_reason: cancelReason }),
+                                                        })
+                                                        alert('✅ 已退回客服，將重新派工')
+                                                        setCancelReason('')
+                                                        setSelectedStatus('')
+                                                        fetchTicket()
+                                                    } catch (err) {
+                                                        alert(err.message || '操作失敗')
+                                                    } finally {
+                                                        setSaving(false)
+                                                    }
+                                                }}
+                                                disabled={!cancelReason.trim() || saving}
+                                                className="btn"
+                                                style={{ width: '100%', padding: '10px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '8px' }}
+                                            >
+                                                {saving ? '⏳ ...' : '確認退回'}
+                                            </button>
+                                        </div>
+                                    )}
                                 </>
                             )}
 
