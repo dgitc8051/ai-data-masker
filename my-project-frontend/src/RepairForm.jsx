@@ -141,13 +141,13 @@ export default function RepairForm() {
     // 日曆排程：客戶偏好時段（最多 3 天，每天可複選時段）
     const [calendarSlots, setCalendarSlots] = useState([{ date: '', periods: [] }])
 
-    // 計算今天和兩週後的日期（用於日曆限制）
-    // 允許當天預約，但只能選下一個時段
+    // 計算今天和兩週後的日期（用本地時區，避免 UTC 偏差）
     const today = new Date()
+    const toLocalDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
     const twoWeeksLater = new Date()
     twoWeeksLater.setDate(twoWeeksLater.getDate() + 14)
-    const minDate = today.toISOString().split('T')[0]
-    const maxDate = twoWeeksLater.toISOString().split('T')[0]
+    const minDate = toLocalDateStr(today)
+    const maxDate = toLocalDateStr(twoWeeksLater)
 
     // 當天可用時段過濾（早上只能約下午/晚上，下午只能約晚上，晚上不能約當天）
     const getCurrentPeriod = () => {
@@ -157,7 +157,7 @@ export default function RepairForm() {
         return 'evening'
     }
     const getAvailablePeriods = (dateStr) => {
-        const todayStr = today.toISOString().split('T')[0]
+        const todayStr = toLocalDateStr(today)
         if (dateStr !== todayStr) return PERIOD_OPTIONS // 非當天，全部可選
         const currentPeriod = getCurrentPeriod()
         if (currentPeriod === 'morning') return PERIOD_OPTIONS.filter(p => p.value !== 'morning')
@@ -248,10 +248,22 @@ export default function RepairForm() {
         setPreviews(prev => prev.filter((_, i) => i !== index))
     }
 
-    // 驗證
+    // 表單驗證
     const canGoStep2 = category && description.trim()
     const address = city && district ? `${city}${district}${addressDetail}` : ''
     const canGoStep3 = phone.trim().length === 8 && city && district && addressDetail.trim()
+
+    // 欄位缺失提示
+    const [showStep1Errors, setShowStep1Errors] = useState(false)
+    const [showStep2Errors, setShowStep2Errors] = useState(false)
+    const step1Errors = []
+    if (!category) step1Errors.push('請選擇報修類別')
+    if (!description.trim()) step1Errors.push('請填寫問題描述')
+    const step2Errors = []
+    if (phone.trim().length !== 8) step2Errors.push('請填寫完整手機號碼（8碼）')
+    if (!city) step2Errors.push('請選擇縣市')
+    if (!district) step2Errors.push('請選擇鄉鎮市區')
+    if (!addressDetail.trim()) step2Errors.push('請填寫詳細地址')
 
     // 送出
     const handleSubmit = async () => {
@@ -450,8 +462,8 @@ export default function RepairForm() {
             <LiffCloseButton />
             <h1>🔧 報修填單</h1>
 
-            {/* 🔧 Debug panel - visible in LINE in-app browser */}
-            {debugLogs.length > 0 && (
+            {/* Debug panel - 只在 URL 帶 ?debug=1 時顯示 */}
+            {debugLogs.length > 0 && new URLSearchParams(window.location.search).get('debug') === '1' && (
                 <div style={{
                     background: '#1a1a2e', color: '#0f0', fontSize: '11px',
                     fontFamily: 'monospace', padding: '8px', borderRadius: '8px',
@@ -584,13 +596,23 @@ export default function RepairForm() {
                     </div>
 
                     <button
-                        onClick={() => setStep(2)}
-                        disabled={!canGoStep2}
+                        onClick={() => {
+                            if (!canGoStep2) { setShowStep1Errors(true); return }
+                            setShowStep1Errors(false)
+                            setStep(2)
+                        }}
                         className="btn btn-primary"
                         style={{ width: '100%', padding: '14px', fontSize: '16px' }}
                     >
                         下一步：聯絡方式 →
                     </button>
+                    {showStep1Errors && step1Errors.length > 0 && (
+                        <div style={{ marginTop: '10px', padding: '10px 14px', borderRadius: '10px', background: '#fef2f2', border: '1px solid #fecaca' }}>
+                            {step1Errors.map((e, i) => (
+                                <div key={i} style={{ color: '#dc2626', fontSize: '13px', marginBottom: i < step1Errors.length - 1 ? '4px' : 0 }}>⚠️ {e}</div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -747,13 +769,23 @@ export default function RepairForm() {
                     <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
                         <button onClick={() => setStep(1)} className="btn btn-secondary">← 上一步</button>
                         <button
-                            onClick={() => setStep(3)}
-                            disabled={!canGoStep3}
+                            onClick={() => {
+                                if (!canGoStep3) { setShowStep2Errors(true); return }
+                                setShowStep2Errors(false)
+                                setStep(3)
+                            }}
                             className="btn btn-primary" style={{ flex: 1 }}
                         >
                             下一步：確認送出 →
                         </button>
                     </div>
+                    {showStep2Errors && step2Errors.length > 0 && (
+                        <div style={{ marginTop: '10px', padding: '10px 14px', borderRadius: '10px', background: '#fef2f2', border: '1px solid #fecaca' }}>
+                            {step2Errors.map((e, i) => (
+                                <div key={i} style={{ color: '#dc2626', fontSize: '13px', marginBottom: i < step2Errors.length - 1 ? '4px' : 0 }}>⚠️ {e}</div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -838,7 +870,8 @@ export default function RepairForm() {
                         </button>
                     </div>
                 </div>
-            )}
-        </div>
+            )
+            }
+        </div >
     )
 }
