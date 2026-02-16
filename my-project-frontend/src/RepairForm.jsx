@@ -495,7 +495,7 @@ export default function RepairForm() {
                     <div style={{ display: 'grid', gap: '14px' }}>
                         {[
                             { num: '1', icon: '📝', title: '填寫需求', desc: '填寫線上表單，描述您的問題狀況與偏好維修時間' },
-                            { num: '2', icon: '💰', title: '師傅報價', desc: '專業師傅評估後免費報價，報價透明、線上確認' },
+                            { num: '2', icon: '📞', title: '師傅聯繫', desc: '師傅查看照片後主動聯繫您，了解細節並提供預估費用' },
                             { num: '3', icon: '📅', title: '約定時間', desc: '師傅依您的偏好時段安排維修，確切時間 LINE 通知' },
                             { num: '4', icon: '🔧', title: '到府維修', desc: '師傅準時到府服務，完工後線上回報結案' },
                         ].map(s => (
@@ -526,7 +526,7 @@ export default function RepairForm() {
                         background: '#fff7ed', borderRadius: '10px', border: '1px solid #fed7aa',
                     }}>
                         <span style={{ fontSize: '13px', color: '#9a3412' }}>
-                            💡 線上報價完全免費，報修後可隨時透過 LINE 查詢進度
+                            💡 報修後師傅會主動與您聯繫，也可隨時透過 LINE 查詢進度
                         </span>
                     </div>
                 </div>
