@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import liff from '@line/liff'
 import LiffCloseButton from './LiffCloseButton'
 
 export default function RepairTrack() {
     const navigate = useNavigate()
+    const [searchParams] = useSearchParams()
     const API = import.meta.env.VITE_API_URL
     const [lineUserId, setLineUserId] = useState('')
     const [liffReady, setLiffReady] = useState(false)
@@ -31,8 +32,16 @@ export default function RepairTrack() {
         cancelled: { label: '已取消', color: '#ef4444' },
     }
 
-    // LIFF 初始化
+    // LIFF 初始化（優先使用 URL 參數中的 line_user_id）
     useEffect(() => {
+        // 從 URL 查詢參數取得 line_user_id（從報修成功頁跳轉過來）
+        const urlLineId = searchParams.get('line_user_id')
+        if (urlLineId) {
+            setLineUserId(urlLineId)
+            setLiffReady(true)
+            return
+        }
+
         const liffId = import.meta.env.VITE_LIFF_ID_TRACK
         if (!liffId) {
             // 沒有 LIFF ID → 直接顯示手動查詢

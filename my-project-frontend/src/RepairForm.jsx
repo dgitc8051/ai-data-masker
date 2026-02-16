@@ -338,8 +338,9 @@ export default function RepairForm() {
                 minHeight: '100vh',
                 background: 'linear-gradient(135deg, #1e3a5f 0%, #0f2439 100%)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                padding: '20px',
+                padding: '20px', position: 'relative',
             }}>
+                <LiffCloseButton />
                 <div style={{
                     maxWidth: '420px', width: '100%', textAlign: 'center',
                 }}>
@@ -396,7 +397,7 @@ export default function RepairForm() {
                     </div>
 
                     {/* Buttons */}
-                    <Link to="/track" style={{
+                    <Link to={`/track${lineUserId ? `?line_user_id=${encodeURIComponent(lineUserId)}` : ''}`} style={{
                         display: 'block', padding: '14px', borderRadius: '12px',
                         background: '#3b82f6', color: '#fff', fontSize: '15px',
                         fontWeight: '600', textDecoration: 'none', marginBottom: '10px',
