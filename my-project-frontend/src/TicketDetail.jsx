@@ -67,6 +67,8 @@ export default function TicketDetail() {
     // 接案時間選擇
     const [acceptTime, setAcceptTime] = useState('')
     const [acceptEstimate, setAcceptEstimate] = useState('')
+    // 照片放大
+    const [lightboxImg, setLightboxImg] = useState(null)
 
     const isAdmin = user?.role === 'admin'
     const isRepairTicket = ticket?.category != null
@@ -573,7 +575,7 @@ export default function TicketDetail() {
                                     {ticket.attachments.filter(a => a.file_type !== 'completion').map(att => (
                                         <img key={att.id} src={`${API}/api/attachments/${att.id}/image`} alt={att.original_name}
                                             style={{ width: '120px', height: '120px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #e5e7eb', cursor: 'pointer' }}
-                                            onClick={() => window.open(`${API}/api/attachments/${att.id}/image`, '_blank')} />
+                                            onClick={() => setLightboxImg(`${API}/api/attachments/${att.id}/image`)} />
                                     ))}
                                 </div>
                             </div>
@@ -587,7 +589,7 @@ export default function TicketDetail() {
                                     {ticket.attachments.filter(a => a.file_type === 'completion').map(att => (
                                         <img key={att.id} src={`${API}/api/attachments/${att.id}/image`} alt={att.original_name}
                                             style={{ width: '120px', height: '120px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #10b981', cursor: 'pointer' }}
-                                            onClick={() => window.open(`${API}/api/attachments/${att.id}/image`, '_blank')} />
+                                            onClick={() => setLightboxImg(`${API}/api/attachments/${att.id}/image`)} />
                                     ))}
                                 </div>
                             </div>
@@ -1099,7 +1101,7 @@ export default function TicketDetail() {
                                     {ticket.attachments.filter(a => a.file_type !== 'completion').map(att => (
                                         <img key={att.id} src={`${API}/api/attachments/${att.id}/image`} alt={att.original_name}
                                             style={{ width: '120px', height: '120px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer', border: '1px solid #e5e7eb' }}
-                                            onClick={() => window.open(`${API}/api/attachments/${att.id}/image`, '_blank')} />
+                                            onClick={() => setLightboxImg(`${API}/api/attachments/${att.id}/image`)} />
                                     ))}
                                 </div>
                             </div>
@@ -1634,6 +1636,40 @@ export default function TicketDetail() {
                     </button>
                 </form>
             </div>
+
+            {/* 照片放大 Lightbox */}
+            {lightboxImg && (
+                <div
+                    onClick={() => setLightboxImg(null)}
+                    style={{
+                        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                        background: 'rgba(0,0,0,0.9)', zIndex: 9999,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}
+                >
+                    <button
+                        onClick={(e) => { e.stopPropagation(); setLightboxImg(null) }}
+                        style={{
+                            position: 'absolute', top: '16px', right: '16px',
+                            background: 'rgba(255,255,255,0.9)', border: 'none',
+                            borderRadius: '50%', width: '44px', height: '44px',
+                            fontSize: '24px', cursor: 'pointer', fontWeight: 'bold',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                            zIndex: 10000,
+                        }}
+                    >✕</button>
+                    <img
+                        src={lightboxImg}
+                        alt="放大檢視"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            maxWidth: '95vw', maxHeight: '90vh',
+                            objectFit: 'contain', borderRadius: '4px',
+                        }}
+                    />
+                </div>
+            )}
         </div>
     )
 }
