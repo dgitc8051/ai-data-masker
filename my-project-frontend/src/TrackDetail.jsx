@@ -8,7 +8,9 @@ const statusMap = {
     need_more_info: { label: '待補件', color: '#ef4444', icon: '📢' },
     info_submitted: { label: '補件完成待審核', color: '#f97316', icon: '📥' },
     dispatched: { label: '已派工', color: '#3b82f6', icon: '🚗' },
-    time_proposed: { label: '請選擇時段', color: '#8b5cf6', icon: '📅' },
+    time_proposed: { label: '請確認時段', color: '#8b5cf6', icon: '📅' },
+    scheduled: { label: '已排定', color: '#059669', icon: '✅' },
+    reschedule: { label: '改期中', color: '#f59e0b', icon: '🔄' },
     in_progress: { label: '處理中', color: '#8b5cf6', icon: '🔧' },
     done: { label: '已完工', color: '#10b981', icon: '✅' },
     completed: { label: '已結案', color: '#6b7280', icon: '📁' },
@@ -17,7 +19,7 @@ const statusMap = {
 }
 
 // 進度步驟
-const statusSteps = ['new', 'dispatched', 'in_progress', 'done', 'closed']
+const statusSteps = ['new', 'dispatched', 'scheduled', 'in_progress', 'done', 'closed']
 
 export default function TrackDetail() {
     const { id } = useParams()
@@ -44,6 +46,38 @@ export default function TrackDetail() {
     const [showCancel, setShowCancel] = useState(false)
     const [cancelReason, setCancelReason] = useState('')
     const [cancelling, setCancelling] = useState(false)
+    // 改期
+    const [showReschedule, setShowReschedule] = useState(false)
+    const [rescheduleReason, setRescheduleReason] = useState('')
+    const [rescheduleSlots, setRescheduleSlots] = useState([{ date: '', period: 'morning' }])
+    const [slotConfirmed, setSlotConfirmed] = useState(false)
+
+    // 日期範圍
+    const today = new Date()
+    const twoWeeksLater = new Date()
+    twoWeeksLater.setDate(twoWeeksLater.getDate() + 14)
+    const minDate = today.toISOString().split('T')[0]
+    const maxDate = twoWeeksLater.toISOString().split('T')[0]
+
+    const PERIOD_OPTIONS = [
+        { value: 'morning', label: '上午 09-12' },
+        { value: 'afternoon', label: '下午 13-17' },
+        { value: 'evening', label: '晚上 18-21' },
+    ]
+    const getCurrentPeriod = () => {
+        const hour = new Date().getHours()
+        if (hour < 12) return 'morning'
+        if (hour < 17) return 'afternoon'
+        return 'evening'
+    }
+    const getAvailablePeriods = (dateStr) => {
+        const todayStr = today.toISOString().split('T')[0]
+        if (dateStr !== todayStr) return PERIOD_OPTIONS
+        const cp = getCurrentPeriod()
+        if (cp === 'morning') return PERIOD_OPTIONS.filter(p => p.value !== 'morning')
+        if (cp === 'afternoon') return PERIOD_OPTIONS.filter(p => p.value === 'evening')
+        return []
+    }
 
     useEffect(() => {
         if (!line_user_id && (!phone || !ticketNo)) {
@@ -572,81 +606,86 @@ export default function TrackDetail() {
                     </div>
                 )}
 
-                {/* ===== 師傅提供時段選擇 ===== */}
-                {ticket.status === 'time_proposed' && !timeConfirmed && (
+                {/* ===== 師傅已選時段，請客戶確認 ===== */}
+                {ticket.status === 'time_proposed' && ticket.worker_selected_slot && !slotConfirmed && (
                     <div style={{
                         background: 'rgba(139,92,246,0.1)', borderRadius: '14px',
                         padding: '20px', border: '1px solid rgba(139,92,246,0.3)',
                         marginBottom: '16px',
                     }}>
                         <div style={{ fontSize: '18px', fontWeight: '700', color: '#a78bfa', marginBottom: '12px' }}>
-                            📅 請選擇維修時段
+                            📅 請確認維修時段
                         </div>
                         <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '13px', marginBottom: '14px' }}>
-                            師傅已提供以下可用時段，請選擇您方便的時間
+                            師傅已選定以下時段，請確認是否方便
                         </div>
-                        <div style={{ display: 'grid', gap: '8px', marginBottom: '16px' }}>
-                            {(ticket.proposed_time_slots || []).map((slot, i) => (
-                                <label key={i} style={{
-                                    display: 'flex', alignItems: 'center', gap: '10px',
-                                    padding: '14px 16px', borderRadius: '10px', cursor: 'pointer',
-                                    background: selectedSlot === `${slot.date} ${slot.time}` ? 'rgba(139,92,246,0.2)' : 'rgba(255,255,255,0.06)',
-                                    border: selectedSlot === `${slot.date} ${slot.time}` ? '2px solid #8b5cf6' : '1px solid rgba(255,255,255,0.1)',
-                                    transition: 'all 0.2s',
-                                }}>
-                                    <input
-                                        type="radio"
-                                        name="customerSlot"
-                                        value={`${slot.date} ${slot.time}`}
-                                        checked={selectedSlot === `${slot.date} ${slot.time}`}
-                                        onChange={e => setSelectedSlot(e.target.value)}
-                                    />
-                                    <span style={{ color: '#fff', fontSize: '15px', fontWeight: '500' }}>{slot.date} {slot.time}</span>
-                                </label>
-                            ))}
+                        <div style={{
+                            padding: '16px', borderRadius: '12px',
+                            background: 'rgba(139,92,246,0.15)', border: '2px solid #8b5cf6',
+                            textAlign: 'center', marginBottom: '16px',
+                        }}>
+                            <div style={{ fontSize: '24px', marginBottom: '6px' }}>📆</div>
+                            <div style={{ color: '#fff', fontSize: '18px', fontWeight: '700' }}>
+                                {ticket.worker_selected_slot.label}
+                            </div>
+                            {ticket.worker_selected_slot.selected_by_name && (
+                                <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px', marginTop: '6px' }}>
+                                    選定者：{ticket.worker_selected_slot.selected_by_name}
+                                </div>
+                            )}
                         </div>
-                        <button
-                            onClick={async () => {
-                                if (!selectedSlot) return
-                                setSubmitting(true)
-                                try {
-                                    const res = await fetch(
-                                        `${import.meta.env.VITE_API_URL}/api/tickets/track/${id}/confirm-time`,
-                                        {
-                                            method: 'POST',
-                                            headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({ line_user_id, phone, ticket_no: ticketNo, selected_slot: selectedSlot }),
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <button
+                                onClick={async () => {
+                                    setSubmitting(true)
+                                    try {
+                                        const body = { line_user_id, phone, ticket_no: ticketNo }
+                                        const res = await fetch(
+                                            `${API}/api/tickets/track/${id}/customer-confirm-slot`,
+                                            { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+                                        )
+                                        const data = await res.json()
+                                        if (res.ok) {
+                                            setSlotConfirmed(true)
+                                            fetchDetail()
+                                        } else {
+                                            alert(data.message || '確認失敗')
                                         }
-                                    )
-                                    const data = await res.json()
-                                    if (res.ok) {
-                                        setTimeConfirmed(true)
-                                        fetchDetail()
-                                    } else {
-                                        alert(data.message || '確認失敗')
-                                    }
-                                } catch (e) {
-                                    alert('網路錯誤')
-                                } finally {
-                                    setSubmitting(false)
-                                }
-                            }}
-                            disabled={!selectedSlot || submitting}
-                            style={{
-                                width: '100%', padding: '14px', borderRadius: '12px',
-                                border: 'none', cursor: !selectedSlot || submitting ? 'not-allowed' : 'pointer',
-                                background: selectedSlot ? 'linear-gradient(135deg, #8b5cf6, #6d28d9)' : 'rgba(255,255,255,0.1)',
-                                color: '#fff', fontSize: '16px', fontWeight: '700',
-                                opacity: !selectedSlot || submitting ? 0.5 : 1,
-                            }}
-                        >
-                            {submitting ? '⏳ 確認中...' : '✅ 確認這個時段'}
-                        </button>
+                                    } catch { alert('網路錯誤') }
+                                    finally { setSubmitting(false) }
+                                }}
+                                disabled={submitting}
+                                style={{
+                                    flex: 1, padding: '14px', borderRadius: '12px',
+                                    border: 'none', cursor: 'pointer',
+                                    background: 'linear-gradient(135deg, #8b5cf6, #6d28d9)',
+                                    color: '#fff', fontSize: '16px', fontWeight: '700',
+                                    opacity: submitting ? 0.5 : 1,
+                                }}
+                            >
+                                {submitting ? '⏳ 確認中...' : '✅ 確認這個時段'}
+                            </button>
+                            {(ticket.reschedule_count ?? 0) < 3 ? (
+                                <button
+                                    onClick={() => setShowReschedule(true)}
+                                    style={{
+                                        padding: '14px 20px', borderRadius: '12px',
+                                        border: '1px solid rgba(255,255,255,0.2)',
+                                        background: 'rgba(255,255,255,0.06)', color: '#fca5a5',
+                                        fontSize: '14px', fontWeight: '600', cursor: 'pointer',
+                                    }}
+                                >🔄 改期</button>
+                            ) : (
+                                <div style={{ padding: '14px', color: 'rgba(255,255,255,0.3)', fontSize: '12px', textAlign: 'center' }}>
+                                    ⚠️ 改期已達上限，請確認或聯繫客服
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
 
                 {/* 時段確認成功 */}
-                {timeConfirmed && (
+                {slotConfirmed && (
                     <div style={{
                         background: 'rgba(16,185,129,0.1)', borderRadius: '14px',
                         padding: '20px', border: '1px solid rgba(16,185,129,0.3)',
@@ -657,20 +696,188 @@ export default function TrackDetail() {
                             時段已確認！
                         </div>
                         <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', marginTop: '6px' }}>
-                            師傅將於您選擇的時段前往處理
+                            師傅將於約定時間到場處理
                         </div>
                     </div>
                 )}
 
-                {/* 已確認時段顯示 */}
-                {ticket.confirmed_time_slot && ticket.status !== 'time_proposed' && (
+                {/* 已排定時段顯示 */}
+                {ticket.confirmed_time_slot && !['time_proposed'].includes(ticket.status) && (
                     <div style={{
                         background: 'rgba(16,185,129,0.08)', borderRadius: '14px',
                         padding: '16px 20px', border: '1px solid rgba(16,185,129,0.2)',
                         marginBottom: '16px',
                     }}>
                         <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginBottom: '6px' }}>✅ 確認維修時段</div>
-                        <div style={{ color: '#34d399', fontSize: '16px', fontWeight: '600' }}>{ticket.confirmed_time_slot}</div>
+                        <div style={{ color: '#34d399', fontSize: '16px', fontWeight: '600' }}>📅 {ticket.confirmed_time_slot}</div>
+                        {ticket.time_confirmed_at && (
+                            <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: '12px', marginTop: '4px' }}>
+                                確認時間：{new Date(ticket.time_confirmed_at).toLocaleString('zh-TW')}
+                            </div>
+                        )}
+                        {/* 已排定，客戶可改期（上限 3 次） */}
+                        {['scheduled'].includes(ticket.status) && !showReschedule && (ticket.reschedule_count ?? 0) < 3 && (
+                            <button
+                                onClick={() => setShowReschedule(true)}
+                                style={{
+                                    marginTop: '12px', padding: '8px 16px', borderRadius: '8px',
+                                    border: '1px solid rgba(255,255,255,0.2)',
+                                    background: 'rgba(255,255,255,0.06)', color: '#fca5a5',
+                                    fontSize: '13px', cursor: 'pointer',
+                                }}
+                            >🔄 申請改期 ({3 - (ticket.reschedule_count ?? 0)} 次可用)</button>
+                        )}
+                        {['scheduled'].includes(ticket.status) && (ticket.reschedule_count ?? 0) >= 3 && (
+                            <div style={{ marginTop: '10px', color: 'rgba(255,255,255,0.3)', fontSize: '12px' }}>
+                                ⚠️ 已達改期上限（3次），如需調整請聯繫客服
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* 改期中狀態 */}
+                {ticket.status === 'reschedule' && (
+                    <div style={{
+                        background: 'rgba(245,158,11,0.1)', borderRadius: '14px',
+                        padding: '20px', border: '1px solid rgba(245,158,11,0.3)',
+                        marginBottom: '16px',
+                    }}>
+                        <div style={{ fontSize: '18px', fontWeight: '700', color: '#fbbf24', marginBottom: '8px' }}>
+                            🔄 改期處理中
+                        </div>
+                        <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '13px' }}>
+                            您的新偏好時段已送出，請等待師傅重新選擇時間。
+                        </div>
+                        {ticket.reschedule_count > 0 && (
+                            <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: '12px', marginTop: '6px' }}>
+                                已改期 {ticket.reschedule_count} 次
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* ===== 改期表單 ===== */}
+                {showReschedule && (
+                    <div style={{
+                        background: 'rgba(245,158,11,0.1)', borderRadius: '14px',
+                        padding: '20px', border: '1px solid rgba(245,158,11,0.3)',
+                        marginBottom: '16px',
+                    }}>
+                        <div style={{ fontSize: '18px', fontWeight: '700', color: '#fbbf24', marginBottom: '12px' }}>
+                            🔄 申請改期
+                        </div>
+                        <div style={{ marginBottom: '12px' }}>
+                            <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', display: 'block', marginBottom: '4px' }}>改期原因</label>
+                            <input
+                                type="text"
+                                value={rescheduleReason}
+                                onChange={e => setRescheduleReason(e.target.value)}
+                                placeholder="例如：臨時有事無法到場"
+                                style={{
+                                    width: '100%', padding: '10px 14px', borderRadius: '8px',
+                                    border: '1px solid rgba(255,255,255,0.15)', fontSize: '14px',
+                                    background: 'rgba(255,255,255,0.08)', color: '#fff',
+                                    boxSizing: 'border-box',
+                                }}
+                            />
+                        </div>
+                        <div style={{ marginBottom: '12px' }}>
+                            <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', display: 'block', marginBottom: '6px' }}>新偏好時間（最多 3 個）</label>
+                            {rescheduleSlots.map((slot, i) => (
+                                <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
+                                    <input
+                                        type="date" value={slot.date} min={minDate} max={maxDate}
+                                        onChange={e => {
+                                            const u = [...rescheduleSlots]; u[i] = { ...u[i], date: e.target.value };
+                                            // 重置時段如果當天選擇不合法
+                                            const avail = getAvailablePeriods(e.target.value)
+                                            if (avail.length && !avail.find(p => p.value === u[i].period)) u[i].period = avail[0].value
+                                            setRescheduleSlots(u)
+                                        }}
+                                        style={{
+                                            flex: 1, padding: '8px', borderRadius: '8px',
+                                            border: '1px solid rgba(255,255,255,0.15)',
+                                            background: 'rgba(255,255,255,0.08)', color: '#fff', fontSize: '13px',
+                                        }}
+                                    />
+                                    <select
+                                        value={slot.period}
+                                        onChange={e => { const u = [...rescheduleSlots]; u[i] = { ...u[i], period: e.target.value }; setRescheduleSlots(u) }}
+                                        style={{
+                                            padding: '8px', borderRadius: '8px',
+                                            border: '1px solid rgba(255,255,255,0.15)',
+                                            background: 'rgba(255,255,255,0.08)', color: '#fff', fontSize: '13px',
+                                        }}
+                                    >
+                                        {(slot.date ? getAvailablePeriods(slot.date) : PERIOD_OPTIONS).map(p => (
+                                            <option key={p.value} value={p.value}>{p.label}</option>
+                                        ))}
+                                    </select>
+                                    {rescheduleSlots.length > 1 && (
+                                        <button onClick={() => setRescheduleSlots(rescheduleSlots.filter((_, j) => j !== i))}
+                                            style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '16px' }}>×</button>
+                                    )}
+                                </div>
+                            ))}
+                            {rescheduleSlots.length < 3 && (
+                                <button
+                                    onClick={() => setRescheduleSlots([...rescheduleSlots, { date: '', period: 'morning' }])}
+                                    style={{
+                                        width: '100%', padding: '8px', borderRadius: '8px',
+                                        border: '1px dashed rgba(255,255,255,0.2)',
+                                        background: 'none', color: 'rgba(255,255,255,0.4)',
+                                        fontSize: '13px', cursor: 'pointer',
+                                    }}
+                                >+ 新增偏好</button>
+                            )}
+                        </div>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <button
+                                onClick={async () => {
+                                    if (!rescheduleReason.trim()) { alert('請填寫改期原因'); return }
+                                    const validSlots = rescheduleSlots.filter(s => s.date && s.period)
+                                    if (!validSlots.length) { alert('請至少選擇一個新時段'); return }
+                                    setSubmitting(true)
+                                    try {
+                                        const body = { line_user_id, phone, ticket_no: ticketNo, reason: rescheduleReason, new_preferred_slots: validSlots }
+                                        const res = await fetch(
+                                            `${API}/api/tickets/track/${id}/reschedule`,
+                                            { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+                                        )
+                                        const data = await res.json()
+                                        if (res.ok) {
+                                            alert('✅ 改期申請已送出')
+                                            setShowReschedule(false)
+                                            setRescheduleReason('')
+                                            setRescheduleSlots([{ date: '', period: 'morning' }])
+                                            fetchDetail()
+                                        } else {
+                                            alert(data.message || '改期失敗')
+                                        }
+                                    } catch { alert('網路錯誤') }
+                                    finally { setSubmitting(false) }
+                                }}
+                                disabled={submitting}
+                                style={{
+                                    flex: 1, padding: '14px', borderRadius: '12px',
+                                    border: 'none', cursor: 'pointer',
+                                    background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                                    color: '#fff', fontSize: '15px', fontWeight: '700',
+                                    opacity: submitting ? 0.5 : 1,
+                                }}
+                            >
+                                {submitting ? '⏳ 送出中...' : '🔄 送出改期申請'}
+                            </button>
+                            <button
+                                onClick={() => setShowReschedule(false)}
+                                style={{
+                                    padding: '14px 20px', borderRadius: '12px',
+                                    border: '1px solid rgba(255,255,255,0.2)',
+                                    background: 'none', color: 'rgba(255,255,255,0.5)',
+                                    fontSize: '14px', cursor: 'pointer',
+                                }}
+                            >取消</button>
+                        </div>
                     </div>
                 )}
 

@@ -13,11 +13,10 @@ const CATEGORIES = [
     { value: '其他', label: '🔩 其他設備', icon: '🛠️' },
 ]
 
-const TIME_SLOTS = [
-    '上午（09:00-12:00）',
-    '下午（13:00-17:00）',
-    '晚上（18:00-21:00）',
-    '週末皆可',
+const PERIOD_OPTIONS = [
+    { value: 'morning', label: '上午 09:00-12:00' },
+    { value: 'afternoon', label: '下午 13:00-17:00' },
+    { value: 'evening', label: '晚上 18:00-21:00' },
 ]
 
 export default function RepairForm() {
@@ -139,6 +138,48 @@ export default function RepairForm() {
     const [district, setDistrict] = useState('')
     const [addressDetail, setAddressDetail] = useState('')
     const [preferredTimeSlots, setPreferredTimeSlots] = useState([])
+    // 日曆排程：客戶偏好時段（1～3 個）
+    const [calendarSlots, setCalendarSlots] = useState([{ date: '', period: 'morning' }])
+
+    // 計算今天和兩週後的日期（用於日曆限制）
+    // 允許當天預約，但只能選下一個時段
+    const today = new Date()
+    const twoWeeksLater = new Date()
+    twoWeeksLater.setDate(twoWeeksLater.getDate() + 14)
+    const minDate = today.toISOString().split('T')[0]
+    const maxDate = twoWeeksLater.toISOString().split('T')[0]
+
+    // 當天可用時段過濾（早上只能約下午/晚上，下午只能約晚上，晚上不能約當天）
+    const getCurrentPeriod = () => {
+        const hour = new Date().getHours()
+        if (hour < 12) return 'morning'
+        if (hour < 17) return 'afternoon'
+        return 'evening'
+    }
+    const getAvailablePeriods = (dateStr) => {
+        const todayStr = today.toISOString().split('T')[0]
+        if (dateStr !== todayStr) return PERIOD_OPTIONS // 非當天，全部可選
+        const currentPeriod = getCurrentPeriod()
+        if (currentPeriod === 'morning') return PERIOD_OPTIONS.filter(p => p.value !== 'morning')
+        if (currentPeriod === 'afternoon') return PERIOD_OPTIONS.filter(p => p.value === 'evening')
+        return [] // 晚上無法當天預約
+    }
+
+    const addCalendarSlot = () => {
+        if (calendarSlots.length < 3) {
+            setCalendarSlots([...calendarSlots, { date: '', period: 'morning' }])
+        }
+    }
+    const removeCalendarSlot = (index) => {
+        if (calendarSlots.length > 1) {
+            setCalendarSlots(calendarSlots.filter((_, i) => i !== index))
+        }
+    }
+    const updateCalendarSlot = (index, field, value) => {
+        const updated = [...calendarSlots]
+        updated[index] = { ...updated[index], [field]: value }
+        setCalendarSlots(updated)
+    }
 
     // Step 3: 補充
     const [notes, setNotes] = useState('')
@@ -218,6 +259,11 @@ export default function RepairForm() {
             formData.append('phone', `09${phone}`)
             formData.append('address', address)
             formData.append('preferred_time_slot', preferredTimeSlots.join(', '))
+            // 日曆偏好時段
+            const validSlots = calendarSlots.filter(s => s.date && s.period)
+            if (validSlots.length > 0) {
+                formData.append('customer_preferred_slots', JSON.stringify(validSlots))
+            }
             if (notes) formData.append('notes_internal', notes)
             if (lineUserId) formData.append('customer_line_id', lineUserId)
             if (assignedUserIds.length > 0) {
@@ -593,26 +639,69 @@ export default function RepairForm() {
                     </div>
 
                     <div className="form-group">
-                        <label>偏好時段（可複選）</label>
-                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                            {TIME_SLOTS.map(slot => (
-                                <div
-                                    key={slot}
-                                    onClick={() => setPreferredTimeSlots(prev =>
-                                        prev.includes(slot)
-                                            ? prev.filter(s => s !== slot)
-                                            : [...prev, slot]
+                        <label>📅 偏好維修時間（最多 3 個）</label>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            {calendarSlots.map((slot, index) => (
+                                <div key={index} style={{
+                                    display: 'flex', gap: '8px', alignItems: 'center',
+                                    background: '#f9fafb', borderRadius: '10px', padding: '10px 12px',
+                                    border: '1px solid #e5e7eb',
+                                }}>
+                                    <span style={{ color: '#6b7280', fontSize: '13px', minWidth: '36px' }}>偏好{index + 1}</span>
+                                    <input
+                                        type="date"
+                                        value={slot.date}
+                                        min={minDate}
+                                        max={maxDate}
+                                        onChange={e => updateCalendarSlot(index, 'date', e.target.value)}
+                                        style={{
+                                            flex: 1, padding: '8px 10px', borderRadius: '8px',
+                                            border: '1px solid #d1d5db', fontSize: '14px',
+                                            background: '#fff',
+                                        }}
+                                    />
+                                    <select
+                                        value={slot.period}
+                                        onChange={e => updateCalendarSlot(index, 'period', e.target.value)}
+                                        style={{
+                                            padding: '8px 10px', borderRadius: '8px',
+                                            border: '1px solid #d1d5db', fontSize: '14px',
+                                            background: '#fff', minWidth: '130px',
+                                        }}
+                                    >
+                                        {(slot.date ? getAvailablePeriods(slot.date) : PERIOD_OPTIONS).map(opt => (
+                                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                        ))}
+                                    </select>
+                                    {calendarSlots.length > 1 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => removeCalendarSlot(index)}
+                                            style={{
+                                                background: 'none', border: 'none', color: '#ef4444',
+                                                cursor: 'pointer', fontSize: '18px', padding: '0 4px',
+                                            }}
+                                        >×</button>
                                     )}
-                                    style={{
-                                        padding: '8px 16px', borderRadius: '20px', cursor: 'pointer',
-                                        fontSize: '13px', transition: 'all 0.2s',
-                                        background: preferredTimeSlots.includes(slot) ? '#4f46e5' : '#f3f4f6',
-                                        color: preferredTimeSlots.includes(slot) ? 'white' : '#374151',
-                                        border: preferredTimeSlots.includes(slot) ? '1px solid #4f46e5' : '1px solid #e5e7eb',
-                                    }}
-                                >{preferredTimeSlots.includes(slot) ? '✓ ' : ''}{slot}</div>
+                                </div>
                             ))}
                         </div>
+                        {calendarSlots.length < 3 && (
+                            <button
+                                type="button"
+                                onClick={addCalendarSlot}
+                                style={{
+                                    marginTop: '8px', background: 'none', border: '1px dashed #9ca3af',
+                                    borderRadius: '8px', padding: '8px 16px', color: '#6b7280',
+                                    cursor: 'pointer', fontSize: '13px', width: '100%',
+                                }}
+                            >
+                                + 新增偏好時間
+                            </button>
+                        )}
+                        <p style={{ color: '#9ca3af', fontSize: '12px', margin: '6px 0 0' }}>
+                            💡 可選今天～兩週內，當天僅提供下一個時段以後
+                        </p>
                     </div>
 
                     <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
@@ -659,10 +748,19 @@ export default function RepairForm() {
                             <div style={{ color: '#6b7280', marginBottom: '4px' }}>服務地址</div>
                             <div>{address}</div>
                         </div>
-                        {preferredTimeSlots.length > 0 && (
-                            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', background: '#f9fafb', borderRadius: '8px' }}>
-                                <span style={{ color: '#6b7280' }}>偏好時段</span>
-                                <span>{preferredTimeSlots.join(', ')}</span>
+                        {calendarSlots.some(s => s.date) && (
+                            <div style={{ padding: '10px 14px', background: '#f9fafb', borderRadius: '8px' }}>
+                                <div style={{ color: '#6b7280', marginBottom: '6px' }}>📅 偏好維修時間</div>
+                                {calendarSlots.filter(s => s.date).map((slot, i) => {
+                                    const periodLabel = PERIOD_OPTIONS.find(p => p.value === slot.period)?.label || slot.period
+                                    const d = new Date(slot.date + 'T00:00:00')
+                                    const weekday = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()]
+                                    return (
+                                        <div key={i} style={{ fontSize: '14px', marginBottom: '2px' }}>
+                                            • {d.getMonth() + 1}/{d.getDate()}（{weekday}）{periodLabel}
+                                        </div>
+                                    )
+                                })}
                             </div>
                         )}
                         {photos.length > 0 && (

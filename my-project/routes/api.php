@@ -25,7 +25,9 @@ Route::middleware('throttle:10,1')->group(function () {
     Route::post('/repair-tickets', [TicketController::class, 'store']); // 公開報修建票
     Route::post('/tickets/track/{id}/confirm-quote', [TicketController::class, 'confirmQuote']); // 客戶確認報價
     Route::post('/tickets/track/{id}/supplement', [TicketController::class, 'supplementTicket']); // 客戶補件（含照片）
-    Route::post('/tickets/track/{id}/confirm-time', [TicketController::class, 'confirmTimeSlot']); // 客戶確認時段
+    Route::post('/tickets/track/{id}/confirm-time', [TicketController::class, 'confirmTimeSlot']); // 客戶確認時段（舊版）
+    Route::post('/tickets/track/{id}/customer-confirm-slot', [TicketController::class, 'customerConfirmSlot']); // 客戶確認師傅選的時段
+    Route::post('/tickets/track/{id}/reschedule', [TicketController::class, 'customerReschedule']); // 客戶改期
     Route::post('/tickets/track/{id}/cancel', [TicketController::class, 'customerCancelTicket']); // 客戶取消
 });
 Route::post('/line/webhook', [LineWebhookController::class, 'webhook']); // LINE Webhook
@@ -80,6 +82,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/tickets/{id}/propose-times', [TicketController::class, 'proposeTimeSlots']); // 師傅提供時段
     Route::post('/tickets/{id}/confirm-time', [TicketController::class, 'adminConfirmTime']); // 客服代客確認時段
     Route::post('/tickets/{id}/admin-confirm-quote', [TicketController::class, 'adminConfirmQuote']); // 客服代客確認報價
+    Route::post('/tickets/{id}/worker-select-slot', [TicketController::class, 'workerSelectSlot']); // 師傅選時段
+    Route::post('/tickets/{id}/admin-reschedule', [TicketController::class, 'adminReschedule']); // 客服/師傅改期
     Route::post('/tickets/{id}/cancel-accept', [TicketController::class, 'workerCancelAcceptance']); // 師傅取消接單
 
     // LINE 綁定

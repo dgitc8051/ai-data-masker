@@ -48,7 +48,7 @@ $richMenu = [
         // 左上 - 用戶報修
         [
             'bounds' => ['x' => 0, 'y' => 0, 'width' => 833, 'height' => 843],
-            'action' => ['type' => 'uri', 'label' => '我要報修', 'uri' => "$FRONTEND_URL/repair"],
+            'action' => ['type' => 'uri', 'label' => '我要報修', 'uri' => 'https://liff.line.me/2009132924-5k0zwgQt'],
         ],
         // 中上 - 維修進度
         [

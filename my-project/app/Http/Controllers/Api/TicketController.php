@@ -120,6 +120,7 @@ class TicketController extends Controller
                 'address' => $request->input('address'),
                 'description_raw' => $request->input('description'),
                 'preferred_time_slot' => $request->input('preferred_time_slot'),
+                'customer_preferred_slots' => $this->formatPreferredSlots($request->input('customer_preferred_slots')),
                 'is_urgent' => $request->boolean('is_urgent', false),
                 'priority' => $request->boolean('is_urgent') ? 'high' : $request->input('priority', 'medium'),
                 'status' => 'new',
@@ -351,10 +352,20 @@ class TicketController extends Controller
             'notes' => '', // 內部備註不外發
         ];
 
-        // 產生文字訊息
+        // 產生日曆時段顯示
         $urgentTag = $ticket->is_urgent ? '🔴 急件' : '';
+        $calendarSlots = '';
+        if (!empty($ticket->customer_preferred_slots)) {
+            $calendarSlots = collect($ticket->customer_preferred_slots)
+                ->map(fn($s) => "  • {$s['label']}")
+                ->join("\n");
+        }
+        $timeDisplay = $payload['scheduled_at'] ?: ($calendarSlots ?: $payload['preferred_time_slot'] ?: '待定');
         $message = "【派工】{$ticket->ticket_no}（{$ticket->category}）{$urgentTag}\n";
         $message .= "時間：" . ($payload['scheduled_at'] ?: $payload['preferred_time_slot'] ?: '待定') . "\n";
+        if ($calendarSlots) {
+            $message .= "客戶偏好時段：\n{$calendarSlots}\n";
+        }
         $message .= "客戶：{$payload['customer_name']}\n";
         $message .= "電話：{$payload['phone']}\n";
         $message .= "地址：{$payload['address']}\n";
@@ -445,12 +456,14 @@ class TicketController extends Controller
         'new' => ['need_more_info', 'dispatched', 'cancelled'],
         'need_more_info' => ['new', 'info_submitted', 'dispatched', 'cancelled'],
         'info_submitted' => ['need_more_info', 'dispatched', 'cancelled'],
-        'dispatched' => ['time_proposed', 'cancelled'],
-        'time_proposed' => ['in_progress', 'dispatched', 'cancelled'],
-        'in_progress' => ['done', 'cancelled'],
+        'dispatched' => ['time_proposed', 'reschedule', 'cancelled'],
+        'time_proposed' => ['scheduled', 'reschedule', 'dispatched', 'cancelled'],
+        'scheduled' => ['in_progress', 'reschedule', 'cancelled'],
+        'reschedule' => ['dispatched', 'time_proposed', 'cancelled'],
+        'in_progress' => ['done', 'reschedule', 'cancelled'],
         'done' => ['closed'],
         'closed' => [],
-        'cancelled' => [],
+        'cancelled' => ['new'],  // 取消後可重新開單
     ];
 
     /**
@@ -885,6 +898,11 @@ class TicketController extends Controller
             'confirmed_time_slot' => $ticket->confirmed_time_slot,
             'confirmed_by' => $ticket->confirmed_by,
             'time_confirmed_at' => $ticket->time_confirmed_at,
+            // 日曆排程
+            'customer_preferred_slots' => $ticket->customer_preferred_slots,
+            'worker_selected_slot' => $ticket->worker_selected_slot,
+            'reschedule_count' => $ticket->reschedule_count ?? 0,
+            'reschedule_history' => $ticket->reschedule_history,
             'cancelled_at' => $ticket->cancelled_at,
             'cancelled_by_name' => $ticket->cancelled_by_name,
             'cancel_reason' => $ticket->cancel_reason,
@@ -1147,6 +1165,368 @@ class TicketController extends Controller
                 'id' => $ticket->id,
                 'status' => $ticket->status,
                 'confirmed_time_slot' => $ticket->confirmed_time_slot,
+            ],
+        ]);
+    }
+
+    // =================================================================
+    //  日曆排程系統 — 新 API
+    // =================================================================
+
+    /**
+     * 師傅從客戶偏好中選擇 1 個時段
+     * POST /api/tickets/{id}/worker-select-slot
+     */
+    public function workerSelectSlot(Request $request, $id)
+    {
+        $ticket = Ticket::find($id);
+        if (!$ticket) {
+            return response()->json(['message' => '找不到此工單'], 404);
+        }
+
+        if ($ticket->status !== 'dispatched' && $ticket->status !== 'reschedule') {
+            return response()->json(['message' => '此工單目前無法選擇時段'], 422);
+        }
+
+        $request->validate([
+            'selected_index' => 'required|integer|min:0',
+        ]);
+
+        $preferredSlots = $ticket->customer_preferred_slots ?? [];
+        $selectedIndex = $request->input('selected_index');
+
+        if ($selectedIndex >= count($preferredSlots)) {
+            return response()->json(['message' => '選擇的時段不存在'], 422);
+        }
+
+        $selectedSlot = $preferredSlots[$selectedIndex];
+        $user = $request->user();
+
+        $ticket->worker_selected_slot = [
+            'date' => $selectedSlot['date'],
+            'period' => $selectedSlot['period'],
+            'label' => $selectedSlot['label'] ?? "{$selectedSlot['date']} {$selectedSlot['period']}",
+            'selected_by' => 'worker',
+            'selected_by_name' => $user ? $user->name : '師傅',
+            'selected_at' => now()->toISOString(),
+        ];
+        $ticket->status = 'time_proposed';
+        $ticket->save();
+
+        // LINE 通知客戶 + 客服
+        try {
+            $lineService = new LineNotifyService();
+            $workerName = $user ? $user->name : '師傅';
+            $slotLabel = $ticket->worker_selected_slot['label'];
+
+            // 通知客服
+            $adminLineIds = User::where('role', 'admin')
+                ->whereNotNull('line_user_id')
+                ->pluck('line_user_id')
+                ->toArray();
+            $lineService->pushToMultiple(
+                $adminLineIds,
+                "📅 {$ticket->ticket_no} 師傅已選定時段\n師傅：{$workerName}\n選定：{$slotLabel}\n\n等待客戶確認。"
+            );
+
+            // 通知客戶
+            if ($ticket->customer_line_id) {
+                $frontendUrl = env('FRONTEND_URL', 'https://ai-data-masker-production-fda9.up.railway.app');
+                $lineService->pushMessage(
+                    $ticket->customer_line_id,
+                    "📅 您的維修單 {$ticket->ticket_no}\n師傅已選定維修時間：\n\n🗓️ {$slotLabel}\n\n"
+                    . "請點擊以下連結確認：\n{$frontendUrl}/track\n\n"
+                    . "輸入維修編號和手機號碼後即可確認或改期。"
+                );
+            }
+        } catch (\Exception $e) {
+            \Log::warning('LINE 師傅選時段通知失敗: ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'message' => '時段選擇成功，等待客戶確認',
+            'ticket' => [
+                'id' => $ticket->id,
+                'status' => $ticket->status,
+                'worker_selected_slot' => $ticket->worker_selected_slot,
+            ],
+        ]);
+    }
+
+    /**
+     * 客戶確認師傅選的時段（公開 API）
+     * POST /api/tickets/track/{id}/customer-confirm-slot
+     */
+    public function customerConfirmSlot(Request $request, $id)
+    {
+        $ticket = $this->findTrackTicket($request, $id);
+        if (!$ticket) {
+            return response()->json(['message' => '找不到此工單，或驗證資訊不符'], 404);
+        }
+
+        if ($ticket->status !== 'time_proposed') {
+            return response()->json(['message' => '此工單目前不接受時段確認'], 422);
+        }
+
+        if (!$ticket->worker_selected_slot) {
+            return response()->json(['message' => '師傅尚未選定時段'], 422);
+        }
+
+        $ticket->confirmed_time_slot = $ticket->worker_selected_slot['label'] ?? '';
+        $ticket->confirmed_by = 'customer';
+        $ticket->time_confirmed_at = now();
+        $ticket->status = 'scheduled';
+        $ticket->save();
+
+        // LINE 通知師傅 + 客服
+        try {
+            $lineService = new LineNotifyService();
+            $slotLabel = $ticket->confirmed_time_slot;
+            $msg = "✅ {$ticket->ticket_no} 客戶已確認時段\n確認時段：{$slotLabel}\n\n請師傅準時到場。";
+
+            $adminLineIds = User::where('role', 'admin')
+                ->whereNotNull('line_user_id')
+                ->pluck('line_user_id')
+                ->toArray();
+            $lineService->pushToMultiple($adminLineIds, $msg);
+
+            $workerLineIds = $ticket->assignedUsers()
+                ->whereNotNull('line_user_id')
+                ->pluck('line_user_id')
+                ->toArray();
+            if (!empty($workerLineIds)) {
+                $lineService->pushToMultiple($workerLineIds, $msg);
+            }
+
+            // 通知客戶確認成功
+            if ($ticket->customer_line_id) {
+                $lineService->pushMessage(
+                    $ticket->customer_line_id,
+                    "✅ 您的維修單 {$ticket->ticket_no} 時段已確認！\n\n"
+                    . "🗓️ {$slotLabel}\n\n"
+                    . "師傅將在約定時間到場，請確保有人在場。\n"
+                    . "如需改期，請回到進度查詢頁面操作。"
+                );
+            }
+        } catch (\Exception $e) {
+            \Log::warning('LINE 確認時段通知失敗: ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'message' => '時段確認成功',
+            'ticket' => [
+                'id' => $ticket->id,
+                'status' => $ticket->status,
+                'confirmed_time_slot' => $ticket->confirmed_time_slot,
+            ],
+        ]);
+    }
+
+    /**
+     * 客戶發起改期（公開 API）
+     * POST /api/tickets/track/{id}/reschedule
+     */
+    public function customerReschedule(Request $request, $id)
+    {
+        $ticket = $this->findTrackTicket($request, $id);
+        if (!$ticket) {
+            return response()->json(['message' => '找不到此工單，或驗證資訊不符'], 404);
+        }
+
+        $reschedulable = ['time_proposed', 'scheduled'];
+        if (!in_array($ticket->status, $reschedulable)) {
+            return response()->json(['message' => '此工單目前無法改期'], 422);
+        }
+
+        // 改期次數上限
+        if (($ticket->reschedule_count ?? 0) >= 3) {
+            return response()->json(['message' => '改期已達上限（3次），請聯繫客服處理'], 422);
+        }
+
+        $request->validate([
+            'reason' => 'required|string|min:2',
+            'new_preferred_slots' => 'required|array|min:1|max:3',
+            'new_preferred_slots.*.date' => 'required|date|after_or_equal:today',
+            'new_preferred_slots.*.period' => 'required|string|in:morning,afternoon,evening',
+        ]);
+
+        // 記錄改期歷史
+        $history = $ticket->reschedule_history ?? [];
+        $history[] = [
+            'round' => count($history) + 1,
+            'initiated_by' => 'customer',
+            'initiated_by_name' => $ticket->customer_name ?? '客戶',
+            'reason' => $request->input('reason'),
+            'original_slot' => $ticket->confirmed_time_slot ?? ($ticket->worker_selected_slot['label'] ?? '未定'),
+            'new_preferred_slots' => $request->input('new_preferred_slots'),
+            'created_at' => now()->toISOString(),
+        ];
+
+        // 格式化新偏好時段
+        $periodLabels = ['morning' => '上午 09-12', 'afternoon' => '下午 13-17', 'evening' => '晚上 18-21'];
+        $newSlots = collect($request->input('new_preferred_slots'))->map(function ($slot) use ($periodLabels) {
+            $dateFormatted = date('n/j', strtotime($slot['date']));
+            $dayOfWeek = ['日', '一', '二', '三', '四', '五', '六'][date('w', strtotime($slot['date']))];
+            return [
+                'date' => $slot['date'],
+                'period' => $slot['period'],
+                'label' => "{$dateFormatted}（{$dayOfWeek}）{$periodLabels[$slot['period']]}",
+            ];
+        })->toArray();
+
+        $ticket->reschedule_history = $history;
+        $ticket->reschedule_count = ($ticket->reschedule_count ?? 0) + 1;
+        $ticket->customer_preferred_slots = $newSlots;
+        $ticket->worker_selected_slot = null;
+        $ticket->confirmed_time_slot = null;
+        $ticket->confirmed_by = null;
+        $ticket->time_confirmed_at = null;
+        $ticket->status = 'reschedule';
+        $ticket->save();
+
+        // LINE 通知師傅 + 客服
+        try {
+            $lineService = new LineNotifyService();
+            $reason = $request->input('reason');
+            $slotList = collect($newSlots)->map(fn($s) => "  • {$s['label']}")->join("\n");
+            $msg = "🔄 {$ticket->ticket_no} 客戶申請改期（第{$ticket->reschedule_count}次）\n客戶：{$ticket->customer_name}\n原因：{$reason}\n\n新偏好時段：\n{$slotList}";
+
+            $adminLineIds = User::where('role', 'admin')
+                ->whereNotNull('line_user_id')
+                ->pluck('line_user_id')
+                ->toArray();
+            $lineService->pushToMultiple($adminLineIds, $msg);
+
+            $workerLineIds = $ticket->assignedUsers()
+                ->whereNotNull('line_user_id')
+                ->pluck('line_user_id')
+                ->toArray();
+            if (!empty($workerLineIds)) {
+                $lineService->pushToMultiple($workerLineIds, $msg);
+            }
+        } catch (\Exception $e) {
+            \Log::warning('LINE 改期通知失敗: ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'message' => '改期申請已送出',
+            'ticket' => [
+                'id' => $ticket->id,
+                'status' => $ticket->status,
+                'reschedule_count' => $ticket->reschedule_count,
+            ],
+        ]);
+    }
+
+    /**
+     * 客服/師傅發起改期（認證 API）
+     * POST /api/tickets/{id}/admin-reschedule
+     */
+    public function adminReschedule(Request $request, $id)
+    {
+        $ticket = Ticket::find($id);
+        if (!$ticket) {
+            return response()->json(['message' => '找不到此工單'], 404);
+        }
+
+        $reschedulable = ['time_proposed', 'scheduled', 'in_progress', 'dispatched'];
+        if (!in_array($ticket->status, $reschedulable)) {
+            return response()->json(['message' => '此工單目前無法改期'], 422);
+        }
+
+        $request->validate([
+            'reason' => 'required|string|min:2',
+            'new_preferred_slots' => 'nullable|array|min:1|max:3',
+            'new_preferred_slots.*.date' => 'required_with:new_preferred_slots|date|after_or_equal:today',
+            'new_preferred_slots.*.period' => 'required_with:new_preferred_slots|string|in:morning,afternoon,evening',
+        ]);
+
+        $user = $request->user();
+        $initiatedBy = $user->role === 'admin' ? 'admin' : 'worker';
+
+        // 記錄改期歷史
+        $history = $ticket->reschedule_history ?? [];
+        $history[] = [
+            'round' => count($history) + 1,
+            'initiated_by' => $initiatedBy,
+            'initiated_by_name' => $user->name,
+            'reason' => $request->input('reason'),
+            'original_slot' => $ticket->confirmed_time_slot ?? ($ticket->worker_selected_slot['label'] ?? '未定'),
+            'new_preferred_slots' => $request->input('new_preferred_slots'),
+            'created_at' => now()->toISOString(),
+        ];
+
+        $ticket->reschedule_history = $history;
+        $ticket->reschedule_count = ($ticket->reschedule_count ?? 0) + 1;
+        $ticket->worker_selected_slot = null;
+        $ticket->confirmed_time_slot = null;
+        $ticket->confirmed_by = null;
+        $ticket->time_confirmed_at = null;
+
+        // 如果有提供新偏好時段（客服代填）
+        if ($request->has('new_preferred_slots') && !empty($request->input('new_preferred_slots'))) {
+            $periodLabels = ['morning' => '上午 09-12', 'afternoon' => '下午 13-17', 'evening' => '晚上 18-21'];
+            $newSlots = collect($request->input('new_preferred_slots'))->map(function ($slot) use ($periodLabels) {
+                $dateFormatted = date('n/j', strtotime($slot['date']));
+                $dayOfWeek = ['日', '一', '二', '三', '四', '五', '六'][date('w', strtotime($slot['date']))];
+                return [
+                    'date' => $slot['date'],
+                    'period' => $slot['period'],
+                    'label' => "{$dateFormatted}（{$dayOfWeek}）{$periodLabels[$slot['period']]}",
+                ];
+            })->toArray();
+            $ticket->customer_preferred_slots = $newSlots;
+        }
+
+        $ticket->status = 'reschedule';
+        $ticket->save();
+
+        // LINE 通知
+        try {
+            $lineService = new LineNotifyService();
+            $reason = $request->input('reason');
+            $roleName = $initiatedBy === 'admin' ? '客服' : '師傅';
+            $msg = "🔄 {$ticket->ticket_no} {$roleName}申請改期（第{$ticket->reschedule_count}次）\n{$roleName}：{$user->name}\n原因：{$reason}";
+
+            // 通知客服（如果發起者不是客服）
+            if ($initiatedBy !== 'admin') {
+                $adminLineIds = User::where('role', 'admin')
+                    ->whereNotNull('line_user_id')
+                    ->pluck('line_user_id')
+                    ->toArray();
+                $lineService->pushToMultiple($adminLineIds, $msg);
+            }
+
+            // 通知師傅（如果發起者不是師傅）
+            if ($initiatedBy !== 'worker') {
+                $workerLineIds = $ticket->assignedUsers()
+                    ->whereNotNull('line_user_id')
+                    ->pluck('line_user_id')
+                    ->toArray();
+                if (!empty($workerLineIds)) {
+                    $lineService->pushToMultiple($workerLineIds, $msg);
+                }
+            }
+
+            // 通知客戶
+            if ($ticket->customer_line_id) {
+                $frontendUrl = env('FRONTEND_URL', 'https://ai-data-masker-production-fda9.up.railway.app');
+                $lineService->pushMessage(
+                    $ticket->customer_line_id,
+                    "🔄 您的維修單 {$ticket->ticket_no} 需要改期\n{$roleName}：{$user->name}\n原因：{$reason}\n\n"
+                    . "請點擊以下連結查看並提供新的偏好時段：\n{$frontendUrl}/track"
+                );
+            }
+        } catch (\Exception $e) {
+            \Log::warning('LINE 改期通知失敗: ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'message' => '改期已發起',
+            'ticket' => [
+                'id' => $ticket->id,
+                'status' => $ticket->status,
+                'reschedule_count' => $ticket->reschedule_count,
             ],
         ]);
     }
@@ -1463,5 +1843,39 @@ class TicketController extends Controller
             ->where('phone', $request->input('phone', ''))
             ->where('ticket_no', $request->input('ticket_no', ''))
             ->first();
+    }
+
+    /**
+     * 格式化客戶偏好時段
+     */
+    private function formatPreferredSlots($slots): ?array
+    {
+        if (empty($slots)) {
+            return null;
+        }
+
+        // FormData 送來的是 JSON 字串，需要先解碼
+        if (is_string($slots)) {
+            $slots = json_decode($slots, true);
+            if (!is_array($slots)) {
+                return null;
+            }
+        }
+
+        $periodLabels = ['morning' => '上午 09-12', 'afternoon' => '下午 13-17', 'evening' => '晚上 18-21'];
+
+        return collect($slots)->map(function ($slot) use ($periodLabels) {
+            if (!isset($slot['date']) || !isset($slot['period'])) {
+                return null;
+            }
+            $dateFormatted = date('n/j', strtotime($slot['date']));
+            $dayOfWeek = ['日', '一', '二', '三', '四', '五', '六'][date('w', strtotime($slot['date']))];
+            $periodLabel = $periodLabels[$slot['period']] ?? $slot['period'];
+            return [
+                'date' => $slot['date'],
+                'period' => $slot['period'],
+                'label' => "{$dateFormatted}（{$dayOfWeek}）{$periodLabel}",
+            ];
+        })->filter()->values()->toArray();
     }
 }

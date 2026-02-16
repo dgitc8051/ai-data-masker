@@ -7,7 +7,9 @@ const STATUS_MAP = {
     need_more_info: { label: '待補件', color: '#f59e0b' },
     info_submitted: { label: '補件完成待審核', color: '#f97316' },
     dispatched: { label: '已派工', color: '#06b6d4' },
-    time_proposed: { label: '師傅已提供時段', color: '#8b5cf6' },
+    time_proposed: { label: '師傅已選時段', color: '#8b5cf6' },
+    scheduled: { label: '已排定', color: '#059669' },
+    reschedule: { label: '改期中', color: '#f59e0b' },
     in_progress: { label: '處理中', color: '#f97316' },
     done: { label: '完工', color: '#10b981' },
     closed: { label: '結案', color: '#9ca3af' },
@@ -22,12 +24,14 @@ const STATUS_TRANSITIONS = {
     new: ['need_more_info', 'dispatched', 'cancelled'],
     need_more_info: ['new', 'dispatched', 'cancelled'],
     info_submitted: ['need_more_info', 'dispatched', 'cancelled'],
-    dispatched: ['time_proposed', 'cancelled'],
-    time_proposed: ['in_progress', 'dispatched', 'cancelled'],
-    in_progress: ['done', 'cancelled'],
+    dispatched: ['time_proposed', 'reschedule', 'cancelled'],
+    time_proposed: ['scheduled', 'reschedule', 'dispatched', 'cancelled'],
+    scheduled: ['in_progress', 'reschedule', 'cancelled'],
+    reschedule: ['dispatched', 'time_proposed', 'cancelled'],
+    in_progress: ['done', 'reschedule', 'cancelled'],
     done: ['closed'],
     closed: [],
-    cancelled: [],
+    cancelled: ['new'],
 }
 
 export default function TicketDetail() {
@@ -58,6 +62,9 @@ export default function TicketDetail() {
     const [cancelReason, setCancelReason] = useState('')
     const [confirmReason, setConfirmReason] = useState('')
     const [selectedSlot, setSelectedSlot] = useState('')
+    // 日曆排程
+    const [workerSlotIndex, setWorkerSlotIndex] = useState(null)
+    const [rescheduleReason, setRescheduleReason] = useState('')
 
     const isAdmin = user?.role === 'admin'
     const isRepairTicket = ticket?.category != null
@@ -267,6 +274,55 @@ export default function TicketDetail() {
         setSaving(false)
     }
 
+    // 師傅選擇時段
+    const handleWorkerSelectSlot = async (index) => {
+        if (!window.confirm(`確定選擇此時段？`)) return
+        setSaving(true)
+        try {
+            const res = await authFetch(`${API}/api/tickets/${id}/worker-select-slot`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ selected_index: index }),
+            })
+            if (!res.ok) {
+                const data = await res.json()
+                throw new Error(data.message || '選擇失敗')
+            }
+            alert('✅ 時段已選定，等待客戶確認')
+            fetchTicket()
+        } catch (err) {
+            alert('❌ ' + err.message)
+        }
+        setSaving(false)
+    }
+
+    // 客服/師傅發起改期
+    const handleAdminReschedule = async () => {
+        if (!rescheduleReason.trim()) {
+            alert('請填寫改期原因')
+            return
+        }
+        if (!window.confirm('確定要發起改期嗎？')) return
+        setSaving(true)
+        try {
+            const res = await authFetch(`${API}/api/tickets/${id}/admin-reschedule`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason: rescheduleReason }),
+            })
+            if (!res.ok) {
+                const data = await res.json()
+                throw new Error(data.message || '改期失敗')
+            }
+            alert('✅ 改期已發起')
+            setRescheduleReason('')
+            fetchTicket()
+        } catch (err) {
+            alert('❌ ' + err.message)
+        }
+        setSaving(false)
+    }
+
     if (loading) return <div className="container"><p>⏳ 載入中...</p></div>
     if (!ticket) return <div className="container"><p>❌ 找不到工單</p></div>
 
@@ -316,8 +372,8 @@ export default function TicketDetail() {
                             {ticket.address && (
                                 <div style={rowStyle}><span style={labelStyle}>地址</span><span>{ticket.address}</span></div>
                             )}
-                            {ticket.preferred_time_slot && (
-                                <div style={rowStyle}><span style={labelStyle}>偏好時段</span><span>{ticket.preferred_time_slot}</span></div>
+                            {ticket.preferred_time_slot && !ticket.customer_preferred_slots?.length && (
+                                <div style={rowStyle}><span style={labelStyle}>偏好時段（舊版）</span><span>{ticket.preferred_time_slot}</span></div>
                             )}
                             <div style={rowStyle}>
                                 <span style={labelStyle}>處理優先權</span>
@@ -353,6 +409,122 @@ export default function TicketDetail() {
                             )}
                         </div>
                     </div>
+
+                    {/* 📅 排程資訊卡 */}
+                    {(ticket.customer_preferred_slots?.length > 0 || ticket.worker_selected_slot || ticket.confirmed_time_slot || ticket.reschedule_count > 0) && (
+                        <div className="detail-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
+                            <h3>📅 排程資訊</h3>
+                            <div style={{ display: 'grid', gap: '12px' }}>
+
+                                {/* 客戶偏好時段 */}
+                                {ticket.customer_preferred_slots?.length > 0 && (
+                                    <div>
+                                        <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px', color: '#4f46e5' }}>
+                                            客戶偏好時段（{ticket.customer_preferred_slots.length} 個）
+                                        </div>
+                                        <div style={{ display: 'grid', gap: '6px' }}>
+                                            {ticket.customer_preferred_slots.map((slot, i) => {
+                                                const isSelected = ticket.worker_selected_slot?.date === slot.date && ticket.worker_selected_slot?.period === slot.period
+                                                const canSelect = (ticket.status === 'dispatched' || ticket.status === 'reschedule') && !ticket.worker_selected_slot
+                                                return (
+                                                    <div key={i} style={{
+                                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                                        padding: '10px 14px', borderRadius: '8px',
+                                                        background: isSelected ? '#eef2ff' : '#f9fafb',
+                                                        border: isSelected ? '2px solid #4f46e5' : '1px solid #e5e7eb',
+                                                    }}>
+                                                        <span style={{ fontWeight: isSelected ? 'bold' : 'normal' }}>
+                                                            {isSelected && '✅ '}{slot.label}
+                                                        </span>
+                                                        {canSelect && (
+                                                            <button
+                                                                onClick={() => handleWorkerSelectSlot(i)}
+                                                                disabled={saving}
+                                                                style={{
+                                                                    padding: '4px 14px', borderRadius: '8px', fontSize: '13px',
+                                                                    background: '#4f46e5', color: '#fff', border: 'none',
+                                                                    cursor: 'pointer', fontWeight: 'bold',
+                                                                }}
+                                                            >選擇</button>
+                                                        )}
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* 師傅已選時段 */}
+                                {ticket.worker_selected_slot && !ticket.confirmed_time_slot && (
+                                    <div style={{ padding: '10px 14px', background: '#fef3c7', borderRadius: '8px', border: '1px solid #fcd34d' }}>
+                                        <div style={{ fontWeight: 'bold', color: '#92400e', marginBottom: '4px' }}>⏳ 師傅已選定，等待客戶確認</div>
+                                        <div>🗓️ {ticket.worker_selected_slot.label}</div>
+                                        <div style={{ fontSize: '12px', color: '#78716c', marginTop: '4px' }}>
+                                            選擇者：{ticket.worker_selected_slot.selected_by_name}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* 已確認時段 */}
+                                {ticket.confirmed_time_slot && (
+                                    <div style={{ padding: '10px 14px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #86efac' }}>
+                                        <div style={{ fontWeight: 'bold', color: '#166534', marginBottom: '4px' }}>✅ 已確認時段</div>
+                                        <div style={{ fontSize: '16px', fontWeight: 'bold' }}>🗓️ {ticket.confirmed_time_slot}</div>
+                                        {ticket.time_confirmed_at && (
+                                            <div style={{ fontSize: '12px', color: '#78716c', marginTop: '4px' }}>
+                                                確認時間：{new Date(ticket.time_confirmed_at).toLocaleString('zh-TW')}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* 改期次數 */}
+                                {ticket.reschedule_count > 0 && (
+                                    <div style={{ padding: '8px 14px', background: '#fff7ed', borderRadius: '8px', border: '1px solid #fed7aa' }}>
+                                        <span style={{ fontWeight: 'bold', color: '#9a3412' }}>🔄 已改期 {ticket.reschedule_count} 次</span>
+                                    </div>
+                                )}
+
+                                {/* 改期歷史 */}
+                                {ticket.reschedule_history?.length > 0 && (
+                                    <details style={{ marginTop: '4px' }}>
+                                        <summary style={{ cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', color: '#6b7280' }}>
+                                            改期歷史紀錄 ({ticket.reschedule_history.length})
+                                        </summary>
+                                        <div style={{ marginTop: '8px', display: 'grid', gap: '8px', fontSize: '13px' }}>
+                                            {ticket.reschedule_history.map((h, i) => (
+                                                <div key={i} style={{ padding: '8px 12px', background: '#f1f5f9', borderRadius: '6px' }}>
+                                                    <div style={{ fontWeight: 'bold' }}>第 {h.round} 次 — {h.initiated_by_name}（{h.initiated_by}）</div>
+                                                    <div>原因：{h.reason}</div>
+                                                    <div style={{ color: '#9ca3af', fontSize: '12px' }}>{new Date(h.created_at).toLocaleString('zh-TW')}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </details>
+                                )}
+
+                                {/* 發起改期（客服/師傅） */}
+                                {['time_proposed', 'scheduled', 'in_progress', 'dispatched'].includes(ticket.status) && (
+                                    <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '12px' }}>
+                                        <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px' }}>🔄 發起改期</div>
+                                        <textarea
+                                            rows="2" className="form-input"
+                                            placeholder="改期原因..."
+                                            value={rescheduleReason}
+                                            onChange={e => setRescheduleReason(e.target.value)}
+                                            style={{ marginBottom: '8px' }}
+                                        />
+                                        <button
+                                            onClick={handleAdminReschedule}
+                                            disabled={saving || !rescheduleReason.trim()}
+                                            className="btn btn-secondary"
+                                            style={{ fontSize: '13px' }}
+                                        >發起改期</button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
 
                     {/* 問題描述 */}
                     <div className="detail-card">

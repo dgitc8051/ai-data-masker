@@ -59,15 +59,33 @@ class LineWebhookController extends Controller
      */
     private function handleFollow(string $lineUserId, array $event): void
     {
-        // 發送歡迎訊息（告知如何綁定帳號）
         $lineService = new \App\Services\LineNotifyService();
+
+        // 取得 LINE 暱稱
+        $displayName = $this->getLineDisplayName($lineUserId) ?? '';
+
+        // 自動註冊為 LINE 客戶（如果不存在）
+        \App\Models\LineCustomer::firstOrCreate(
+            ['line_user_id' => $lineUserId],
+            [
+                'line_display_name' => $displayName,
+                'avatar_url' => '',
+            ]
+        );
+
+        $frontendUrl = env('FRONTEND_URL', 'https://ai-data-masker-production-fda9.up.railway.app');
+
+        // 發送客戶導向的歡迎訊息
         $lineService->pushMessage(
             $lineUserId,
-            "歡迎使用修繕通 RepairFlow！\n\n" .
-            "請輸入帳號和密碼來綁定通知：\n" .
-            "格式：綁定 帳號 密碼\n" .
-            "例如：綁定 worker1 worker123\n\n" .
-            "綁定後，系統將透過 LINE 推送派工和完工通知。"
+            "歡迎使用修繕通 RepairFlow！🏠\n\n" .
+            "我們提供專業到府維修服務，以下是常用功能：\n\n" .
+            "🔧 報修填單：\n{$frontendUrl}/repair\n\n" .
+            "📋 查詢進度：\n{$frontendUrl}/track\n\n" .
+            "💰 費用參考：\n{$frontendUrl}/pricing\n\n" .
+            "📞 聯絡我們：\n{$frontendUrl}/contact\n\n" .
+            "請直接點選下方選單快速操作 👇\n\n" .
+            "（師傅/員工如需綁定帳號，請輸入：綁定 帳號 密碼）"
         );
     }
 

@@ -9,6 +9,8 @@ const STATUS_MAP = {
     info_submitted: { label: '補件完成待審核', color: '#f97316' },
     dispatched: { label: '已派工', color: '#06b6d4' },
     time_proposed: { label: '待確認時間', color: '#8b5cf6' },
+    scheduled: { label: '已排定', color: '#059669' },
+    reschedule: { label: '改期中', color: '#f59e0b' },
     in_progress: { label: '處理中', color: '#f97316' },
     done: { label: '完工', color: '#10b981' },
     closed: { label: '結案', color: '#9ca3af' },
@@ -117,7 +119,7 @@ export default function TicketList() {
                 padding: '4px 0',
             }}>
                 {Object.entries(STATUS_MAP).filter(([k]) =>
-                    ['all', 'new', 'need_more_info', 'info_submitted', 'dispatched', 'time_proposed', 'in_progress', 'done', 'closed', 'cancelled'].includes(k)
+                    ['all', 'new', 'need_more_info', 'info_submitted', 'dispatched', 'time_proposed', 'scheduled', 'reschedule', 'in_progress', 'done', 'closed', 'cancelled'].includes(k)
                 ).map(([key, st]) => (
                     <button
                         key={key}

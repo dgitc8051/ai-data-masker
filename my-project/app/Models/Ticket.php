@@ -50,6 +50,11 @@ class Ticket extends Model
         'confirmed_by',
         'confirm_reason',
         'time_confirmed_at',
+        // 日曆排程
+        'customer_preferred_slots',
+        'worker_selected_slot',
+        'reschedule_history',
+        'reschedule_count',
         // 取消
         'cancelled_at',
         'cancelled_by_role',
@@ -62,6 +67,9 @@ class Ticket extends Model
         'field_values' => 'array',
         'masked_fields' => 'array',
         'proposed_time_slots' => 'array',
+        'customer_preferred_slots' => 'array',
+        'worker_selected_slot' => 'array',
+        'reschedule_history' => 'array',
         'completed_at' => 'datetime',
         'scheduled_at' => 'datetime',
         'is_urgent' => 'boolean',
