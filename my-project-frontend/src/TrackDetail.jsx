@@ -710,7 +710,7 @@ export default function TrackDetail() {
                     </div>
                 )}
 
-                {/* ===== 師傅已選時段，請客戶確認 ===== */}
+                {/* ===== 師傅已接案 / 選時段，請客戶一次確認（時間＋費用）===== */}
                 {ticket.status === 'time_proposed' && ticket.worker_selected_slot && !slotConfirmed && (
                     <div style={{
                         background: 'rgba(139,92,246,0.1)', borderRadius: '14px',
@@ -718,26 +718,58 @@ export default function TrackDetail() {
                         marginBottom: '16px',
                     }}>
                         <div style={{ fontSize: '18px', fontWeight: '700', color: '#a78bfa', marginBottom: '12px' }}>
-                            📅 請確認維修時段
+                            📋 請確認維修預約
                         </div>
                         <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '13px', marginBottom: '14px' }}>
-                            師傅已選定以下時段，請確認是否方便
+                            師傅已安排以下維修內容，請確認後即為您安排
                         </div>
+
+                        {/* 時間卡片 */}
                         <div style={{
                             padding: '16px', borderRadius: '12px',
                             background: 'rgba(139,92,246,0.15)', border: '2px solid #8b5cf6',
-                            textAlign: 'center', marginBottom: '16px',
+                            textAlign: 'center', marginBottom: '12px',
                         }}>
                             <div style={{ fontSize: '24px', marginBottom: '6px' }}>📆</div>
+                            <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginBottom: '4px' }}>維修時間</div>
                             <div style={{ color: '#fff', fontSize: '18px', fontWeight: '700' }}>
                                 {ticket.worker_selected_slot.label}
                             </div>
                             {ticket.worker_selected_slot.selected_by_name && (
                                 <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px', marginTop: '6px' }}>
-                                    選定者：{ticket.worker_selected_slot.selected_by_name}
+                                    師傅：{ticket.worker_selected_slot.selected_by_name}
                                 </div>
                             )}
                         </div>
+
+                        {/* 費用卡片 */}
+                        {ticket.quoted_amount && (
+                            <div style={{
+                                padding: '16px', borderRadius: '12px',
+                                background: 'rgba(245,158,11,0.12)', border: '2px solid rgba(245,158,11,0.4)',
+                                textAlign: 'center', marginBottom: '12px',
+                            }}>
+                                <div style={{ fontSize: '24px', marginBottom: '6px' }}>💰</div>
+                                <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginBottom: '4px' }}>預估費用</div>
+                                <div style={{ color: '#fff', fontSize: '28px', fontWeight: '800' }}>
+                                    ${Number(ticket.quoted_amount).toLocaleString()}
+                                </div>
+                                <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px', marginTop: '6px' }}>
+                                    ⚠️ 僅供參考，實際金額依現場狀況為準
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 注意事項 */}
+                        <div style={{
+                            padding: '10px 14px', borderRadius: '8px',
+                            background: 'rgba(255,255,255,0.05)', fontSize: '12px',
+                            color: 'rgba(255,255,255,0.4)', lineHeight: '1.6', marginBottom: '14px',
+                        }}>
+                            ⚠️ 師傅到場後若不維修，須酌收基礎檢測費（車馬費）
+                        </div>
+
+                        {/* 確認 + 改期按鈕 */}
                         <div style={{ display: 'flex', gap: '10px' }}>
                             <button
                                 onClick={async () => {
@@ -751,6 +783,7 @@ export default function TrackDetail() {
                                         const data = await res.json()
                                         if (res.ok) {
                                             setSlotConfirmed(true)
+                                            setConfirmed(true)
                                             fetchDetail()
                                         } else {
                                             alert(data.message || '確認失敗')
@@ -762,12 +795,12 @@ export default function TrackDetail() {
                                 style={{
                                     flex: 1, padding: '14px', borderRadius: '12px',
                                     border: 'none', cursor: 'pointer',
-                                    background: 'linear-gradient(135deg, #8b5cf6, #6d28d9)',
+                                    background: 'linear-gradient(135deg, #10b981, #059669)',
                                     color: '#fff', fontSize: '16px', fontWeight: '700',
                                     opacity: submitting ? 0.5 : 1,
                                 }}
                             >
-                                {submitting ? '⏳ 確認中...' : '✅ 確認這個時段'}
+                                {submitting ? '⏳ 確認中...' : '✅ 確認預約'}
                             </button>
                             {(ticket.reschedule_count ?? 0) < 3 ? (
                                 <button
@@ -785,6 +818,19 @@ export default function TrackDetail() {
                                 </div>
                             )}
                         </div>
+
+                        {/* 取消預約 */}
+                        <button
+                            onClick={() => setShowCancel(true)}
+                            style={{
+                                width: '100%', padding: '10px', marginTop: '10px',
+                                borderRadius: '10px', border: '1px solid rgba(239,68,68,0.3)',
+                                background: 'rgba(239,68,68,0.08)', color: '#fca5a5',
+                                fontSize: '13px', cursor: 'pointer',
+                            }}
+                        >
+                            ❌ 取消維修
+                        </button>
                     </div>
                 )}
 
@@ -1016,8 +1062,8 @@ export default function TrackDetail() {
                     </div>
                 )}
 
-                {/* ===== 報價確認區 ===== */}
-                {ticket.quoted_amount && (
+                {/* ===== 報價確認區（只在非 time_proposed 時獨立顯示，time_proposed 已合併到上方）===== */}
+                {ticket.quoted_amount && ticket.status !== 'time_proposed' && (
                     <div style={{
                         background: confirmed
                             ? 'rgba(16,185,129,0.1)'

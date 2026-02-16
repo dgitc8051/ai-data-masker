@@ -1433,6 +1433,7 @@ class TicketController extends Controller
         $ticket->confirmed_time_slot = $ticket->worker_selected_slot['label'] ?? '';
         $ticket->confirmed_by = 'customer';
         $ticket->time_confirmed_at = now();
+        $ticket->quote_confirmed_at = now(); // 一次確認時間＋費用
         $ticket->status = 'scheduled';
         $ticket->save();
 
