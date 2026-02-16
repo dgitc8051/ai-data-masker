@@ -251,7 +251,8 @@ export default function RepairForm() {
     // 表單驗證
     const canGoStep2 = category && description.trim()
     const address = city && district ? `${city}${district}${addressDetail}` : ''
-    const canGoStep3 = phone.trim().length === 8 && city && district && addressDetail.trim()
+    const hasCalendarSlots = calendarSlots.some(s => s.date && s.periods?.length > 0)
+    const canGoStep3 = phone.trim().length === 8 && city && district && addressDetail.trim() && hasCalendarSlots
 
     // 欄位缺失提示
     const [showStep1Errors, setShowStep1Errors] = useState(false)
@@ -264,6 +265,7 @@ export default function RepairForm() {
     if (!city) step2Errors.push('請選擇縣市')
     if (!district) step2Errors.push('請選擇鄉鎮市區')
     if (!addressDetail.trim()) step2Errors.push('請填寫詳細地址')
+    if (!hasCalendarSlots) step2Errors.push('請至少選擇一個偏好維修時間（日期 + 時段）')
 
     // 送出
     const handleSubmit = async () => {
