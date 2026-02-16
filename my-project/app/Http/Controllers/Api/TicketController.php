@@ -1926,7 +1926,18 @@ class TicketController extends Controller
                 ->toArray();
             $lineService->pushToMultiple($adminLineIds, $msg);
 
-            // 不通知客戶（內部調度，客戶不需知道師傅更換）
+            // 通知客戶：師傅異動，將重新安排
+            if ($ticket->customer_line_id) {
+                $frontendUrl = env('FRONTEND_URL', 'https://ai-data-masker-production-fda9.up.railway.app');
+                $lineService->pushMessage(
+                    $ticket->customer_line_id,
+                    "📢 您的維修單 {$ticket->ticket_no} 有異動通知\n\n"
+                    . "原安排的師傅因故無法前往，我們正在為您重新安排師傅。\n"
+                    . "原因：{$reason}\n\n"
+                    . "⏳ 新的師傅確認後會再通知您時間，造成不便敬請見諒。\n\n"
+                    . "👉 查看最新狀態：\n{$frontendUrl}/track"
+                );
+            }
         } catch (\Exception $e) {
             \Log::warning('LINE 師傅取消接單通知失敗: ' . $e->getMessage());
         }
