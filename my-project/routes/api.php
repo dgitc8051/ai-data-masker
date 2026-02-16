@@ -87,6 +87,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/tickets/{id}/worker-select-slot', [TicketController::class, 'workerSelectSlot']); // 師傅選時段
     Route::post('/tickets/{id}/admin-reschedule', [TicketController::class, 'adminReschedule']); // 客服/師傅改期
     Route::post('/tickets/{id}/cancel-accept', [TicketController::class, 'workerCancelAcceptance']); // 師傅取消接單
+    Route::post('/tickets/{id}/assistants', [TicketController::class, 'addAssistant']); // 主師傅加協助人員
+    Route::delete('/tickets/{id}/assistants/{userId}', [TicketController::class, 'removeAssistant']); // 主師傅移除協助人員
 
     // LINE 綁定
     Route::patch('/users/{id}/line', [LineWebhookController::class, 'bindLineUser']);

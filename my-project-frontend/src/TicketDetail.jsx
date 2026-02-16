@@ -48,8 +48,8 @@ export default function TicketDetail() {
     const [dispatchResult, setDispatchResult] = useState(null)
     const [saving, setSaving] = useState(false)
     const [completionPhotos, setCompletionPhotos] = useState([])
-    // 派工選師傅
-    const [selectedWorkers, setSelectedWorkers] = useState([])
+    // 派工選主師傅
+    const [selectedPrimary, setSelectedPrimary] = useState(null)
     // 師傅報價
     const [quoteAmount, setQuoteAmount] = useState('')
     const [quoteDesc, setQuoteDesc] = useState('')
@@ -158,8 +158,8 @@ export default function TicketDetail() {
         setSaving(true)
         try {
             const body = {}
-            if (selectedWorkers.length > 0) {
-                body.technician_ids = selectedWorkers
+            if (selectedPrimary) {
+                body.primary_technician_id = selectedPrimary
             }
             const res = await authFetch(`${API}/api/tickets/${id}/dispatch`, {
                 method: 'POST',
@@ -930,29 +930,34 @@ export default function TicketDetail() {
                                 </>
                             ) : (
                                 <>
-                                    {/* 選擇師傅 */}
+                                    {/* 選擇主師傅 */}
                                     <div style={{ marginBottom: '16px' }}>
                                         <label style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px', display: 'block' }}>
-                                            👷 指派師傅
+                                            👷 指派主師傅
                                         </label>
                                         {workers.length > 0 ? (
                                             <div style={{ display: 'grid', gap: '6px' }}>
+                                                <label style={{
+                                                    display: 'flex', alignItems: 'center', gap: '10px',
+                                                    padding: '10px 14px', background: !selectedPrimary ? '#fef3c7' : 'white',
+                                                    borderRadius: '8px', cursor: 'pointer',
+                                                    border: `1px solid ${!selectedPrimary ? '#f59e0b' : '#e5e7eb'}`,
+                                                }}>
+                                                    <input type="radio" name="primaryTech"
+                                                        checked={!selectedPrimary}
+                                                        onChange={() => setSelectedPrimary(null)} />
+                                                    <span style={{ fontWeight: '600', color: '#92400e' }}>⚡ 不指定（搶單模式）</span>
+                                                </label>
                                                 {workers.map(w => (
                                                     <label key={w.id} style={{
                                                         display: 'flex', alignItems: 'center', gap: '10px',
-                                                        padding: '10px 14px', background: selectedWorkers.includes(w.id) ? '#e0f2fe' : 'white',
+                                                        padding: '10px 14px', background: selectedPrimary === w.id ? '#e0f2fe' : 'white',
                                                         borderRadius: '8px', cursor: 'pointer',
-                                                        border: `1px solid ${selectedWorkers.includes(w.id) ? '#06b6d4' : '#e5e7eb'}`,
+                                                        border: `1px solid ${selectedPrimary === w.id ? '#06b6d4' : '#e5e7eb'}`,
                                                     }}>
-                                                        <input type="checkbox"
-                                                            checked={selectedWorkers.includes(w.id)}
-                                                            onChange={e => {
-                                                                if (e.target.checked) {
-                                                                    setSelectedWorkers([...selectedWorkers, w.id])
-                                                                } else {
-                                                                    setSelectedWorkers(selectedWorkers.filter(id => id !== w.id))
-                                                                }
-                                                            }} />
+                                                        <input type="radio" name="primaryTech"
+                                                            checked={selectedPrimary === w.id}
+                                                            onChange={() => setSelectedPrimary(w.id)} />
                                                         <span style={{ fontWeight: '600' }}>{w.name}</span>
                                                     </label>
                                                 ))}
@@ -961,7 +966,7 @@ export default function TicketDetail() {
                                             <p style={{ color: '#9ca3af', fontSize: '13px' }}>尚無可用師傅</p>
                                         )}
                                         <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '6px' }}>
-                                            💡 不選師傅 = 所有師傅都能看到並自行接案
+                                            💡 不指定主師傅 = 所有師傅都能看到並自行搶單
                                         </p>
                                     </div>
 
@@ -1060,6 +1065,67 @@ export default function TicketDetail() {
                             </div>
                         )}
                     </div>
+
+                    {/* 協助人員管理（只有主師傅看到） */}
+                    {ticket.is_primary && !['done', 'closed', 'cancelled'].includes(ticket.status) && (
+                        <div className="detail-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
+                            <h3>👥 協助人員</h3>
+                            {ticket.assistants?.length > 0 ? (
+                                <div style={{ display: 'grid', gap: '6px', marginBottom: '12px' }}>
+                                    {ticket.assistants.map(a => (
+                                        <div key={a.id} style={{
+                                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                            padding: '8px 14px', background: '#f5f3ff', borderRadius: '8px',
+                                            border: '1px solid #ddd6fe',
+                                        }}>
+                                            <span style={{ fontWeight: '600' }}>{a.name}</span>
+                                            <button onClick={async () => {
+                                                if (!confirm(`確定移除 ${a.name}？`)) return
+                                                try {
+                                                    await authFetch(`${API}/api/tickets/${id}/assistants/${a.id}`, { method: 'DELETE' })
+                                                    fetchTicket()
+                                                } catch (err) { alert('移除失敗') }
+                                            }} style={{
+                                                background: '#fee2e2', color: '#dc2626', border: 'none',
+                                                borderRadius: '6px', padding: '4px 10px', cursor: 'pointer', fontSize: '12px',
+                                            }}>✕ 移除</button>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p style={{ color: '#9ca3af', fontSize: '13px', marginBottom: '12px' }}>尚未新增協助人員</p>
+                            )}
+                            {workers.length > 0 && (
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <select id="assistantSelect" className="form-input" style={{ flex: 1 }}
+                                        defaultValue="">
+                                        <option value="" disabled>+ 選擇協助人員</option>
+                                        {workers.filter(w =>
+                                            w.id !== user?.id &&
+                                            !ticket.assistants?.some(a => a.id === w.id)
+                                        ).map(w => (
+                                            <option key={w.id} value={w.id}>{w.name}</option>
+                                        ))}
+                                    </select>
+                                    <button onClick={async () => {
+                                        const sel = document.getElementById('assistantSelect')
+                                        if (!sel.value) return
+                                        try {
+                                            await authFetch(`${API}/api/tickets/${id}/assistants`, {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ user_id: parseInt(sel.value) }),
+                                            })
+                                            sel.value = ''
+                                            fetchTicket()
+                                        } catch (err) { alert('新增失敗') }
+                                    }} className="btn btn-primary" style={{
+                                        padding: '8px 16px', background: '#8b5cf6',
+                                    }}>新增</button>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* 師傅操作區 */}
                     <div className="detail-card">

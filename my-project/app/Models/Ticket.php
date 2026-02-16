@@ -88,7 +88,19 @@ class Ticket extends Model
 
     public function assignedUsers()
     {
-        return $this->belongsToMany(User::class, 'ticket_user');
+        return $this->belongsToMany(User::class, 'ticket_user')
+            ->withPivot('role')
+            ->withTimestamps();
+    }
+
+    public function primaryTechnician()
+    {
+        return $this->assignedUsers()->wherePivot('role', 'primary')->first();
+    }
+
+    public function assistants()
+    {
+        return $this->assignedUsers()->wherePivot('role', 'assistant')->get();
     }
 
     public function attachments()

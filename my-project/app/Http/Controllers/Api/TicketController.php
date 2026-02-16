@@ -277,7 +277,15 @@ class TicketController extends Controller
             // 電話不遮罩（師傅需聯絡客戶）
         }
 
-        return response()->json($ticket);
+        // 加入主師傅 / 協助人員 / 是否為主師傅
+        $primary = $ticket->primaryTechnician();
+        $assistants = $ticket->assistants();
+        $ticketData = $ticket->toArray();
+        $ticketData['primary_technician'] = $primary ? ['id' => $primary->id, 'name' => $primary->name, 'phone' => $primary->phone] : null;
+        $ticketData['assistants'] = $assistants->map(fn($a) => ['id' => $a->id, 'name' => $a->name])->values();
+        $ticketData['is_primary'] = $user && $primary && $user->id === $primary->id;
+
+        return response()->json($ticketData);
     }
 
     /**
@@ -379,10 +387,21 @@ class TicketController extends Controller
         $payload['message'] = $message;
 
         // 記錄派工稽核
-        $technicianIds = $ticket->assignedUsers->pluck('id')->toArray();
-        if ($request->has('technician_ids')) {
-            $technicianIds = $request->input('technician_ids');
-            $ticket->assignedUsers()->sync($technicianIds);
+        $primaryId = $request->input('primary_technician_id');
+        // 向下相容舊格式
+        if (!$primaryId && $request->has('technician_ids')) {
+            $ids = $request->input('technician_ids');
+            $primaryId = is_array($ids) && count($ids) > 0 ? $ids[0] : null;
+        }
+
+        $technicianIds = $primaryId ? [$primaryId] : [];
+
+        if ($primaryId) {
+            $ticket->assignedUsers()->sync([
+                $primaryId => ['role' => 'primary'],
+            ]);
+        } else {
+            $ticket->assignedUsers()->sync([]);
         }
 
         DispatchLog::create([
@@ -736,9 +755,15 @@ class TicketController extends Controller
         ];
         $ticket->save();
 
-        // 如果未指派，自動指派給接案師傅
+        // 如果未指派，自動指派給接案師傅（搶單 → 自動成為主師傅）
         if ($ticket->assignedUsers->isEmpty()) {
-            $ticket->assignedUsers()->attach($user->id);
+            $ticket->assignedUsers()->attach($user->id, ['role' => 'primary']);
+        } else {
+            // 已指派的情況，確認是主師傅才能接案
+            $primary = $ticket->primaryTechnician();
+            if ($primary && $primary->id !== $user->id) {
+                return response()->json(['message' => '只有主師傅可以接案'], 403);
+            }
         }
 
         // LINE 通知管理員 + 客戶
@@ -795,6 +820,12 @@ class TicketController extends Controller
         }
 
         $user = $request->user();
+
+        // 只有主師傅可以報價
+        $primary = $ticket->primaryTechnician();
+        if ($user && $user->role === 'worker' && $primary && $primary->id !== $user->id) {
+            return response()->json(['message' => '只有主師傅可以報價'], 403);
+        }
         $ticket->quoted_amount = $request->input('quoted_amount');
         $ticket->quote_confirmed_at = null; // 重置確認狀態
         if ($request->has('description') && $request->input('description')) {
@@ -1971,5 +2002,111 @@ class TicketController extends Controller
                 'label' => "{$dateFormatted}（{$dayOfWeek}）{$periodLabel}",
             ];
         })->filter()->values()->toArray();
+    }
+
+    /**
+     * 主師傅新增協助人員
+     * POST /api/tickets/{id}/assistants
+     */
+    public function addAssistant(Request $request, $id)
+    {
+        $ticket = Ticket::with('assignedUsers')->find($id);
+        if (!$ticket) {
+            return response()->json(['message' => '找不到此工單'], 404);
+        }
+
+        $user = $request->user();
+        $primary = $ticket->primaryTechnician();
+
+        // 只有主師傅可以加協助人員
+        if (!$primary || $primary->id !== $user->id) {
+            return response()->json(['message' => '只有主師傅可以新增協助人員'], 403);
+        }
+
+        // 不允許在已結案/取消的工單加人
+        $allowedStatuses = ['dispatched', 'time_proposed', 'scheduled', 'reschedule', 'in_progress'];
+        if (!in_array($ticket->status, $allowedStatuses)) {
+            return response()->json(['message' => '目前工單狀態不允許新增協助人員'], 422);
+        }
+
+        $request->validate([
+            'user_id' => 'required|integer|exists:users,id',
+        ]);
+
+        $assistantId = $request->input('user_id');
+
+        // 不能加自己
+        if ($assistantId == $user->id) {
+            return response()->json(['message' => '不能將自己加為協助人員'], 422);
+        }
+
+        // 檢查是否已經是協助人員
+        $existing = $ticket->assignedUsers()->where('users.id', $assistantId)->first();
+        if ($existing) {
+            return response()->json(['message' => '該師傅已在此工單中'], 422);
+        }
+
+        // 加入協助人員
+        $ticket->assignedUsers()->attach($assistantId, ['role' => 'assistant']);
+
+        // LINE 通知協助人員
+        try {
+            $assistant = User::find($assistantId);
+            if ($assistant && $assistant->line_user_id) {
+                $lineService = new LineNotifyService();
+                $area = mb_substr($ticket->address ?? '', 0, 6) . '...';
+                $timeDisplay = $ticket->scheduled_at
+                    ? $ticket->scheduled_at->format('m/d H:i')
+                    : ($ticket->worker_selected_slot['label'] ?? '待定');
+
+                $msg = "📋【協助通知】{$ticket->ticket_no}（{$ticket->category}）\n";
+                $msg .= "主師傅：{$user->name}（📞 {$user->phone}）\n";
+                $msg .= "時間：{$timeDisplay}\n";
+                $msg .= "區域：{$area}\n";
+                $msg .= "👉 請配合主師傅安排到場協助";
+
+                $lineService->pushMessage($assistant->line_user_id, $msg);
+            }
+        } catch (\Exception $e) {
+            \Log::warning('LINE 協助通知失敗: ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'message' => '已新增協助人員',
+            'assistants' => $ticket->assistants()->map(fn($a) => ['id' => $a->id, 'name' => $a->name]),
+        ]);
+    }
+
+    /**
+     * 主師傅移除協助人員
+     * DELETE /api/tickets/{id}/assistants/{userId}
+     */
+    public function removeAssistant(Request $request, $id, $userId)
+    {
+        $ticket = Ticket::with('assignedUsers')->find($id);
+        if (!$ticket) {
+            return response()->json(['message' => '找不到此工單'], 404);
+        }
+
+        $user = $request->user();
+        $primary = $ticket->primaryTechnician();
+
+        // 只有主師傅可以移除協助人員
+        if (!$primary || $primary->id !== $user->id) {
+            return response()->json(['message' => '只有主師傅可以移除協助人員'], 403);
+        }
+
+        // 只能移除 assistant 角色
+        $target = $ticket->assignedUsers()->where('users.id', $userId)->first();
+        if (!$target || $target->pivot->role !== 'assistant') {
+            return response()->json(['message' => '找不到此協助人員'], 404);
+        }
+
+        $ticket->assignedUsers()->detach($userId);
+
+        return response()->json([
+            'message' => '已移除協助人員',
+            'assistants' => $ticket->assistants()->map(fn($a) => ['id' => $a->id, 'name' => $a->name]),
+        ]);
     }
 }
