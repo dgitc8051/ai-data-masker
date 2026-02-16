@@ -40,11 +40,21 @@ export default function TicketList() {
     const fetchTickets = async () => {
         setLoading(true)
         try {
+            // 已派工和未接案都查 dispatched，前端再分
+            const apiStatus = (statusFilter === 'unaccepted' || statusFilter === 'dispatched') ? 'dispatched' : statusFilter
             let url = `${API}/api/tickets?`
-            if (statusFilter !== 'all') url += `status=${statusFilter}&`
+            if (apiStatus !== 'all') url += `status=${apiStatus}&`
             if (searchQuery) url += `search=${encodeURIComponent(searchQuery)}&`
             const res = await authFetch(url)
-            const data = await res.json()
+            let data = await res.json()
+
+            // 前端過濾：已派工 vs 未接案
+            if (statusFilter === 'dispatched') {
+                data = data.filter(t => t.status === 'dispatched' && t.primary_technician)
+            } else if (statusFilter === 'unaccepted') {
+                data = data.filter(t => t.status === 'dispatched' && !t.primary_technician)
+            }
+
             setTickets(data)
         } catch (err) {
             console.error('載入失敗:', err)

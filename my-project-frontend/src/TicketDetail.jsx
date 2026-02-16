@@ -67,7 +67,6 @@ export default function TicketDetail() {
     const [rescheduleReason, setRescheduleReason] = useState('')
     // 接案時間選擇
     const [acceptTime, setAcceptTime] = useState('')
-    const [acceptEstimate, setAcceptEstimate] = useState('')
 
     const isAdmin = user?.role === 'admin'
     const isRepairTicket = ticket?.category != null
@@ -188,23 +187,19 @@ export default function TicketDetail() {
         fetchTicket()
     }
 
-    // 師傅接案（含選定時間 + 預估費用）
+    // 師傅接案（含選定時間）
     const handleAccept = async () => {
         if (!acceptTime) {
             alert('請先選擇預定維修時間')
             return
         }
-        if (!acceptEstimate || Number(acceptEstimate) <= 0) {
-            alert('請填寫預估費用')
-            return
-        }
-        if (!confirm(`確定要接案嗎？\n預定維修時間：${acceptTime}\n預估費用：$${acceptEstimate}`)) return
+        if (!confirm(`確定要接案嗎？\n預定維修時間：${acceptTime}`)) return
         setSaving(true)
         try {
             const res = await authFetch(`${API}/api/tickets/${id}/accept`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ selected_time: acceptTime, quoted_amount: Number(acceptEstimate) }),
+                body: JSON.stringify({ selected_time: acceptTime }),
             })
             const data = await res.json()
             if (!res.ok) {
@@ -217,7 +212,6 @@ export default function TicketDetail() {
                 return
             }
             setAcceptTime('')
-            setAcceptEstimate('')
             fetchTicket()
         } catch (err) {
             alert('接案失敗')
@@ -1221,28 +1215,10 @@ export default function TicketDetail() {
                                         </div>
                                     )}
 
-                                    {/* 預估費用（必填） */}
-                                    <div style={{ marginBottom: '12px' }}>
-                                        <label style={{ display: 'block', fontSize: '13px', color: '#155e75', marginBottom: '6px', fontWeight: '600' }}>💰 預估費用（必填）：</label>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <span style={{ fontSize: '16px', fontWeight: 'bold' }}>$</span>
-                                            <input
-                                                type="number"
-                                                className="form-input"
-                                                placeholder="例：3000"
-                                                value={acceptEstimate}
-                                                onChange={e => setAcceptEstimate(e.target.value)}
-                                                style={{ flex: 1, padding: '10px', fontSize: '15px', borderRadius: '8px', border: '1px solid #06b6d4' }}
-                                            />
-                                        </div>
-                                        <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
-                                            ❇️ 僅供參考，實際金額依現場狀況為準
-                                        </div>
-                                    </div>
 
-                                    <button onClick={handleAccept} disabled={saving || !acceptTime || !acceptEstimate}
+                                    <button onClick={handleAccept} disabled={saving || !acceptTime}
                                         className="btn btn-primary"
-                                        style={{ width: '100%', padding: '14px', fontSize: '16px', background: (acceptTime && acceptEstimate) ? '#06b6d4' : '#9ca3af', cursor: (acceptTime && acceptEstimate) ? 'pointer' : 'not-allowed' }}>
+                                        style={{ width: '100%', padding: '14px', fontSize: '16px', background: acceptTime ? '#06b6d4' : '#9ca3af', cursor: acceptTime ? 'pointer' : 'not-allowed' }}>
                                         {saving ? '⏳ ...' : '📥 確認接案'}
                                     </button>
 
