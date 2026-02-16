@@ -1537,6 +1537,62 @@ export default function TicketDetail() {
                                         style={{ padding: '16px', fontSize: '16px', background: '#10b981' }}>
                                         {saving ? '⏳ 回報中...' : '✅ 完工回報'}
                                     </button>
+
+                                    {/* 師傅改期 */}
+                                    <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '12px', marginTop: '12px' }}>
+                                        <button
+                                            onClick={() => setSelectedStatus(selectedStatus === 'worker_reschedule' ? '' : 'worker_reschedule')}
+                                            style={{
+                                                width: '100%', padding: '10px', fontSize: '13px',
+                                                background: '#fffbeb', color: '#92400e',
+                                                border: '1px solid #fcd34d', borderRadius: '8px', cursor: 'pointer',
+                                            }}
+                                        >
+                                            🔄 需要改期（下雨、客戶臨時有事等）
+                                        </button>
+                                        {selectedStatus === 'worker_reschedule' && (
+                                            <div style={{ marginTop: '8px' }}>
+                                                <textarea
+                                                    rows="2" className="form-input"
+                                                    placeholder="改期原因（例：下大雨無法施工）"
+                                                    value={rescheduleReason}
+                                                    onChange={e => setRescheduleReason(e.target.value)}
+                                                    style={{ marginBottom: '8px' }}
+                                                />
+                                                <button
+                                                    onClick={async () => {
+                                                        if (!rescheduleReason.trim()) { alert('請填寫改期原因'); return }
+                                                        if (!confirm('確定要發起改期嗎？')) return
+                                                        setSaving(true)
+                                                        try {
+                                                            const res = await authFetch(`${API}/api/tickets/${id}/admin-reschedule`, {
+                                                                method: 'POST',
+                                                                headers: { 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({ reason: rescheduleReason }),
+                                                            })
+                                                            if (!res.ok) {
+                                                                const data = await res.json()
+                                                                throw new Error(data.message || '改期失敗')
+                                                            }
+                                                            alert('✅ 改期已發起')
+                                                            setRescheduleReason('')
+                                                            setSelectedStatus('')
+                                                            fetchTicket()
+                                                        } catch (err) {
+                                                            alert(err.message)
+                                                        } finally {
+                                                            setSaving(false)
+                                                        }
+                                                    }}
+                                                    disabled={saving || !rescheduleReason.trim()}
+                                                    className="btn btn-secondary"
+                                                    style={{ fontSize: '13px', background: '#f59e0b', color: '#fff', border: 'none' }}
+                                                >
+                                                    {saving ? '⏳ ...' : '確認改期'}
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
                                 </>
                             )}
 
