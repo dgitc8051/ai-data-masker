@@ -144,15 +144,42 @@ class LineWebhookController extends Controller
                 'line_user_id' => $lineUserId,
                 'line_display_name' => $displayName,
             ]);
+
+            $phoneReminder = '';
+            if (empty($user->phone)) {
+                $phoneReminder = "\n\n📞 您尚未設定手機號碼，建議設定以便客戶聯繫：\n設定電話 09xxxxxxxx";
+            }
+
             $lineService->pushMessage(
                 $lineUserId,
                 "✅ 綁定成功！\n\n" .
                 "帳號：{$user->name}（{$user->username}）\n" .
                 "角色：" . ($user->role === 'admin' ? '管理員' : '師傅') . "\n\n" .
                 "之後的派工通知將會透過 LINE 推送給您。" .
-                $bindingWarning
+                $bindingWarning .
+                $phoneReminder
             );
             Log::info("LINE 帳號綁定成功: {$username} → {$lineUserId} ({$displayName})");
+            return;
+        }
+
+        // 設定電話指令：「設定電話 09xxxxxxxx」
+        if (preg_match('/^設定電話\s*(09\d{8})$/u', $text, $matches)) {
+            $phone = trim($matches[1]);
+            $user = User::where('line_user_id', $lineUserId)->first();
+            if (!$user) {
+                $lineService->pushMessage(
+                    $lineUserId,
+                    "❌ 請先綁定帳號後再設定電話\n格式：綁定 帳號 密碼"
+                );
+                return;
+            }
+            $user->update(['phone' => $phone]);
+            $lineService->pushMessage(
+                $lineUserId,
+                "✅ 電話已設定：{$phone}\n\n客戶將可透過此號碼聯繫您。"
+            );
+            Log::info("LINE 設定電話: {$user->name} => {$phone}");
             return;
         }
 

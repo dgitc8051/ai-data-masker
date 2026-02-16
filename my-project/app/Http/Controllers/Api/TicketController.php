@@ -552,11 +552,13 @@ class TicketController extends Controller
 
             // 已派工 → 通知客戶
             if ($newStatus === 'dispatched' && $ticket->customer_line_id) {
-                $workerNames = $ticket->assignedUsers->pluck('name')->join('、') ?: '維修師傅';
+                $workerInfo = $ticket->assignedUsers->map(function ($w) {
+                    return $w->phone ? "{$w->name}（{$w->phone}）" : $w->name;
+                })->join('、') ?: '維修師傅';
                 $lineService->pushMessage(
                     $ticket->customer_line_id,
                     "👷 您的維修單 {$ticket->ticket_no} 已派工！\n\n"
-                    . "負責師傅：{$workerNames}\n"
+                    . "負責師傅：{$workerInfo}\n"
                     . "我們會盡快與您聯繫安排時間。"
                 );
             }
@@ -657,17 +659,19 @@ class TicketController extends Controller
                 ->whereNotNull('line_user_id')
                 ->pluck('line_user_id')
                 ->toArray();
+            $workerPhone = $user->phone ? "（{$user->phone}）" : '';
             $lineService->pushToMultiple(
                 $adminLineIds,
-                "📥 {$ticket->ticket_no} 已接案\n師傅：{$user->name}"
+                "📥 {$ticket->ticket_no} 已接案\n師傅：{$user->name}{$workerPhone}"
             );
 
             // 通知客戶：師傅已接案
             if ($ticket->customer_line_id) {
+                $workerContact = $user->phone ? "\n📞 師傅電話：{$user->phone}" : '';
                 $lineService->pushMessage(
                     $ticket->customer_line_id,
                     "👷 您的維修單 {$ticket->ticket_no} 已有師傅接案！\n\n"
-                    . "負責師傅：{$user->name}\n"
+                    . "負責師傅：{$user->name}{$workerContact}\n"
                     . "師傅將盡快與您聯繫安排時間。"
                 );
             }
@@ -1693,7 +1697,8 @@ class TicketController extends Controller
         try {
             $lineService = new LineNotifyService();
             $reason = $ticket->cancel_reason;
-            $msg = "❌ {$ticket->ticket_no} 客戶已取消\n客戶：{$ticket->customer_name}\n原因：{$reason}";
+            $customerPhone = $ticket->phone ?: '未提供';
+            $msg = "❌ {$ticket->ticket_no} 客戶已取消\n客戶：{$ticket->customer_name}\n📞 電話：{$customerPhone}\n原因：{$reason}";
 
             $adminLineIds = User::where('role', 'admin')
                 ->whereNotNull('line_user_id')
