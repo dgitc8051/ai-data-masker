@@ -480,6 +480,56 @@ export default function RepairForm() {
                 {isLoggedIn && <Link to="/" className="btn btn-secondary">📋 工單列表</Link>}
             </div>
 
+            {/* 維修流程說明 */}
+            {step === 1 && (
+                <div style={{
+                    background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+                    borderRadius: '16px', padding: '24px', marginBottom: '24px',
+                    border: '1px solid #bae6fd',
+                }}>
+                    <h3 style={{ textAlign: 'center', margin: '0 0 20px', color: '#0369a1', fontSize: '18px' }}>
+                        🔧 維修服務 4 步驟
+                    </h3>
+                    <div style={{ display: 'grid', gap: '14px' }}>
+                        {[
+                            { num: '1', icon: '📝', title: '填寫需求', desc: '填寫線上表單，描述您的問題狀況與偏好維修時間' },
+                            { num: '2', icon: '💰', title: '師傅報價', desc: '專業師傅評估後免費報價，報價透明、線上確認' },
+                            { num: '3', icon: '📅', title: '約定時間', desc: '師傅依您的偏好時段安排維修，確切時間 LINE 通知' },
+                            { num: '4', icon: '🔧', title: '到府維修', desc: '師傅準時到府服務，完工後線上回報結案' },
+                        ].map(s => (
+                            <div key={s.num} style={{
+                                display: 'flex', alignItems: 'flex-start', gap: '14px',
+                                background: 'white', borderRadius: '12px', padding: '14px 16px',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                            }}>
+                                <div style={{
+                                    width: '40px', height: '40px', borderRadius: '50%',
+                                    background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+                                    color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    fontSize: '16px', fontWeight: 'bold', flexShrink: 0,
+                                }}>{s.num}</div>
+                                <div style={{ flex: 1 }}>
+                                    <div style={{ fontWeight: '600', fontSize: '15px', color: '#1e293b', marginBottom: '4px' }}>
+                                        {s.icon} {s.title}
+                                    </div>
+                                    <div style={{ fontSize: '13px', color: '#64748b', lineHeight: '1.4' }}>
+                                        {s.desc}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    <div style={{
+                        textAlign: 'center', marginTop: '16px', padding: '10px 16px',
+                        background: '#fff7ed', borderRadius: '10px', border: '1px solid #fed7aa',
+                    }}>
+                        <span style={{ fontSize: '13px', color: '#9a3412' }}>
+                            💡 線上報價完全免費，報修後可隨時透過 LINE 查詢進度
+                        </span>
+                    </div>
+                </div>
+            )}
+
             {/* 步驟指示器 */}
             <div style={{
                 display: 'flex', justifyContent: 'center', gap: '0', marginBottom: '24px',
