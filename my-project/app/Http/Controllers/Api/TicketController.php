@@ -842,7 +842,7 @@ class TicketController extends Controller
                 ->toArray();
             $lineService->pushToMultiple(
                 $adminLineIds,
-                "💰 {$ticket->ticket_no} 師傅報價\n金額：\${$ticket->quoted_amount}\n師傅：{$user->name}"
+                "💰 {$ticket->ticket_no} 預估費用\n金額：\${$ticket->quoted_amount}\n師傅：{$user->name}"
             );
 
             // 通知客戶：有報價了，請確認
@@ -850,9 +850,9 @@ class TicketController extends Controller
                 $frontendUrl = env('FRONTEND_URL', 'https://ai-data-masker-production-fda9.up.railway.app');
                 $lineService->pushMessage(
                     $ticket->customer_line_id,
-                    "💰 您的維修單 {$ticket->ticket_no} 已有報價！\n\n"
-                    . "報價金額：\${$ticket->quoted_amount}\n\n"
-                    . "請點擊以下連結確認報價：\n{$frontendUrl}/track\n"
+                    "💰 您的維修單 {$ticket->ticket_no} 已有預估費用！\n\n"
+                    . "預估費用：\${$ticket->quoted_amount}\n\n"
+                    . "請點擊以下連結確認：\n{$frontendUrl}/track\n"
                     . "輸入維修編號和手機號碼後即可確認。"
                 );
             }
@@ -861,7 +861,7 @@ class TicketController extends Controller
         }
 
         return response()->json([
-            'message' => '報價已送出，等待客戶確認',
+            'message' => '預估費用已記錄，等待客戶確認',
             'ticket' => $ticket,
         ]);
     }

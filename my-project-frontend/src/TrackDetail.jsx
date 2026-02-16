@@ -1028,7 +1028,7 @@ export default function TrackDetail() {
                         marginBottom: '16px',
                     }}>
                         <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginBottom: '10px' }}>
-                            💰 師傅報價
+                            💰 預估費用
                         </div>
                         <div style={{
                             fontSize: '32px', fontWeight: '800', color: '#fff',
@@ -1043,7 +1043,7 @@ export default function TrackDetail() {
                                 background: 'rgba(16,185,129,0.15)',
                             }}>
                                 <span style={{ color: '#34d399', fontSize: '14px', fontWeight: '600' }}>
-                                    ✅ 已確認報價
+                                    ✅ 已確認費用
                                 </span>
                                 {ticket.quote_confirmed_at && (
                                     <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: '11px', marginTop: '4px' }}>
@@ -1057,8 +1057,8 @@ export default function TrackDetail() {
                                     color: 'rgba(255,255,255,0.5)', fontSize: '12px',
                                     textAlign: 'center', margin: '0 0 12px', lineHeight: '1.6',
                                 }}>
-                                    師傅已完成現場檢測並報價<br />
-                                    請確認是否同意此報價，確認後師傅將開始施工
+                                    師傅已評估您的維修需求<br />
+                                    確認後師傅將安排維修時間
                                 </p>
                                 <button
                                     onClick={handleConfirmQuote}
@@ -1070,7 +1070,7 @@ export default function TrackDetail() {
                                         color: '#fff', fontSize: '16px', fontWeight: '700',
                                         opacity: confirming ? 0.6 : 1,
                                     }}>
-                                    {confirming ? '⏳ 處理中...' : '✅ 同意此報價'}
+                                    {confirming ? '⏳ 處理中...' : '✅ 確認，請安排維修'}
                                 </button>
                             </>
                         )}

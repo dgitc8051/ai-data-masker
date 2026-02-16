@@ -591,7 +591,7 @@ export default function TicketDetail() {
                             <div style={{ display: 'grid', gap: '10px' }}>
                                 {ticket.quoted_amount && (
                                     <div style={rowStyle}>
-                                        <span style={labelStyle}>師傅報價</span>
+                                        <span style={labelStyle}>預估費用</span>
                                         <span style={{ fontWeight: 'bold' }}>${ticket.quoted_amount}</span>
                                     </div>
                                 )}
@@ -604,7 +604,7 @@ export default function TicketDetail() {
                                     <div style={rowStyle}>
                                         <span style={labelStyle}>客戶確認</span>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                            <span style={{ color: '#f59e0b', fontWeight: 'bold' }}>⏳ 等待確認</span>
+                                            <span style={{ color: '#f59e0b', fontWeight: 'bold' }}>⏳ 等待客戶確認</span>
                                             {(user?.role === 'admin') && (
                                                 <button
                                                     onClick={handleAdminConfirmQuote}
@@ -627,7 +627,7 @@ export default function TicketDetail() {
                                 )}
                                 {ticket.quoted_amount && ticket.actual_amount && Number(ticket.actual_amount) > Number(ticket.quoted_amount) * 1.2 && (
                                     <div style={{ padding: '8px 14px', background: '#fef2f2', borderRadius: '8px', color: '#ef4444', fontSize: '13px', fontWeight: 'bold' }}>
-                                        ⚠️ 實收金額超出報價 20% 以上
+                                        ⚠️ 實收金額超出預估費用 20% 以上
                                     </div>
                                 )}
                             </div>
@@ -1352,11 +1352,11 @@ export default function TicketDetail() {
                                     {/* 報價區 */}
                                     <div style={{ padding: '14px 16px', background: '#f9fafb', borderRadius: '10px' }}>
                                         <label style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px', display: 'block' }}>
-                                            💰 現場報價
+                                            💰 預估費用
                                             {ticket.quoted_amount && (
                                                 <span style={{ fontSize: '12px', color: '#10b981', marginLeft: '8px' }}>
-                                                    (已報價 ${ticket.quoted_amount}
-                                                    {ticket.quote_confirmed_at ? ' ✅ 客戶已確認' : ' ⏳ 等待確認'})
+                                                    (已填 ${ticket.quoted_amount}
+                                                    {ticket.quote_confirmed_at ? ' ✅ 客戶已確認' : ' ⏳ 等待客戶確認'})
                                                 </span>
                                             )}
                                         </label>
@@ -1367,11 +1367,11 @@ export default function TicketDetail() {
                                                 onChange={e => setQuoteAmount(e.target.value)} />
                                             <button onClick={handleSubmitQuote} disabled={saving || !quoteAmount}
                                                 className="btn btn-primary" style={{ fontSize: '13px', whiteSpace: 'nowrap' }}>
-                                                {saving ? '⏳' : '送出報價'}
+                                                {saving ? '⏳' : '記錄費用'}
                                             </button>
                                         </div>
                                         <input type="text" className="form-input" style={{ marginTop: '8px' }}
-                                            placeholder="維修項目說明（選填）" value={quoteDesc}
+                                            placeholder="維修項目及費用說明（選填）" value={quoteDesc}
                                             onChange={e => setQuoteDesc(e.target.value)} />
                                     </div>
 
