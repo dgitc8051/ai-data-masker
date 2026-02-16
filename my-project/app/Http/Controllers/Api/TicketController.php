@@ -2104,6 +2104,19 @@ class TicketController extends Controller
 
         $ticket->assignedUsers()->detach($userId);
 
+        // LINE 通知被移除的協助人員
+        try {
+            if ($target->line_user_id) {
+                $lineService = new LineNotifyService();
+                $msg = "📋【協助取消通知】{$ticket->ticket_no}（{$ticket->category}）\n";
+                $msg .= "主師傅 {$user->name} 已取消您的協助安排。\n";
+                $msg .= "👉 您不需要到場，謝謝！";
+                $lineService->pushMessage($target->line_user_id, $msg);
+            }
+        } catch (\Exception $e) {
+            \Log::warning('LINE 協助取消通知失敗: ' . $e->getMessage());
+        }
+
         return response()->json([
             'message' => '已移除協助人員',
             'assistants' => $ticket->assistants()->map(fn($a) => ['id' => $a->id, 'name' => $a->name]),
