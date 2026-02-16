@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Models\Ticket;
 use App\Models\User;
 use App\Models\DispatchLog;
+use App\Models\TicketAttachment;
 use App\Models\CustomMaskField;
 use App\Services\MaskService;
 use App\Services\AiMaskService;
@@ -137,15 +138,10 @@ class TicketController extends Controller
                     ]);
             }
 
-            // 處理附件
+            // 處理附件（存入資料庫）
             if ($request->hasFile('attachments')) {
                 foreach ($request->file('attachments') as $file) {
-                    $path = $file->store('ticket-attachments', 'public');
-                    $ticket->attachments()->create([
-                        'file_path' => $path,
-                        'file_type' => str_starts_with($file->getMimeType(), 'image/') ? 'image' : 'document',
-                        'original_name' => $file->getClientOriginalName(),
-                    ]);
+                    $this->storeAttachmentToDb($ticket, $file, str_starts_with($file->getMimeType(), 'image/') ? 'image' : 'document');
                 }
             }
         } else {
@@ -435,18 +431,50 @@ class TicketController extends Controller
         $uploaded = [];
 
         foreach ($files as $file) {
-            $path = $file->store('ticket-attachments', 'public');
-            $uploaded[] = $ticket->attachments()->create([
-                'file_path' => $path,
-                'file_type' => $type,
-                'original_name' => $file->getClientOriginalName(),
-            ]);
+            $uploaded[] = $this->storeAttachmentToDb($ticket, $file, $type);
         }
 
         return response()->json([
             'message' => count($uploaded) . ' 個檔案上傳成功',
             'attachments' => $uploaded,
         ], 201);
+    }
+
+    /**
+     * 將上傳檔案存入資料庫
+     */
+    private function storeAttachmentToDb(Ticket $ticket, $file, string $type = 'photo'): TicketAttachment
+    {
+        return $ticket->attachments()->create([
+            'file_path' => 'db-stored/' . uniqid() . '_' . $file->getClientOriginalName(),
+            'file_data' => file_get_contents($file->getRealPath()),
+            'mime_type' => $file->getMimeType(),
+            'file_type' => $type,
+            'original_name' => $file->getClientOriginalName(),
+        ]);
+    }
+
+    /**
+     * 從資料庫讀取附件圖片
+     * GET /api/attachments/{id}/image
+     */
+    public function serveAttachment($id)
+    {
+        $att = TicketAttachment::find($id);
+        if (!$att || !$att->file_data) {
+            // 降級：嘗試從檔案系統讀取（相容舊資料）
+            if ($att && $att->file_path && \Storage::disk('public')->exists($att->file_path)) {
+                return response(\Storage::disk('public')->get($att->file_path))
+                    ->header('Content-Type', $att->mime_type ?? 'image/jpeg')
+                    ->header('Cache-Control', 'public, max-age=86400');
+            }
+            abort(404);
+        }
+
+        return response($att->file_data)
+            ->header('Content-Type', $att->mime_type ?? 'image/jpeg')
+            ->header('Cache-Control', 'public, max-age=86400')
+            ->header('Content-Disposition', 'inline; filename="' . ($att->original_name ?? 'image.jpg') . '"');
     }
 
     /**
@@ -923,7 +951,7 @@ class TicketController extends Controller
             return [
                 'id' => $att->id,
                 'file_path' => $att->file_path,
-                'file_url' => url('storage/' . $att->file_path),
+                'file_url' => url('api/attachments/' . $att->id . '/image'),
                 'file_type' => $att->file_type,
                 'original_name' => $att->original_name,
             ];
@@ -1004,21 +1032,19 @@ class TicketController extends Controller
             if (!empty($deleteIds)) {
                 $attachments = $ticket->attachments()->whereIn('id', $deleteIds)->get();
                 foreach ($attachments as $att) {
-                    \Storage::disk('public')->delete($att->file_path);
+                    // 嘗試刪除舊檔案系統的檔案（相容舊資料）
+                    if ($att->file_path && !str_starts_with($att->file_path, 'db-stored/')) {
+                        \Storage::disk('public')->delete($att->file_path);
+                    }
                     $att->delete();
                 }
             }
         }
 
-        // 處理新圖片上傳
+        // 處理新圖片上傳（存入資料庫）
         if ($request->hasFile('attachments')) {
             foreach ($request->file('attachments') as $file) {
-                $path = $file->store('ticket-attachments', 'public');
-                $ticket->attachments()->create([
-                    'file_path' => $path,
-                    'file_type' => 'photo',
-                    'original_name' => $file->getClientOriginalName(),
-                ]);
+                $this->storeAttachmentToDb($ticket, $file, 'photo');
             }
         }
 

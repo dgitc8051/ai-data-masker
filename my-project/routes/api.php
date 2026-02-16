@@ -20,6 +20,7 @@ Route::middleware('throttle:30,1')->group(function () {
     Route::get('/tickets/track', [TicketController::class, 'trackByPhone']); // 公開追蹤
     Route::get('/tickets/track-by-line', [TicketController::class, 'trackByLineId']); // LINE ID 追蹤
     Route::get('/tickets/track/{id}', [TicketController::class, 'trackDetail']); // 公開詳情（遮罩版）
+    Route::get('/attachments/{id}/image', [TicketController::class, 'serveAttachment']); // 附件圖片
 });
 Route::middleware('throttle:10,1')->group(function () {
     Route::post('/repair-tickets', [TicketController::class, 'store']); // 公開報修建票

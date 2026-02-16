@@ -484,7 +484,7 @@ export default function TrackDetail() {
                                         {ticket.attachments.filter(a => a.file_type !== 'completion').map(att => (
                                             <div key={att.id} style={{ position: 'relative' }}>
                                                 <img
-                                                    src={`${API}/storage/${att.file_path}`}
+                                                    src={`${API}/api/attachments/${att.id}/image`}
                                                     alt={att.original_name}
                                                     style={{
                                                         width: '100%', height: '80px', objectFit: 'cover',
@@ -492,7 +492,7 @@ export default function TrackDetail() {
                                                         opacity: deletePhotoIds.includes(att.id) ? 0.3 : 1,
                                                         border: deletePhotoIds.includes(att.id) ? '2px solid #ef4444' : '1px solid rgba(255,255,255,0.1)',
                                                     }}
-                                                    onClick={() => window.open(`${API}/storage/${att.file_path}`, '_blank')}
+                                                    onClick={() => window.open(`${API}/api/attachments/${att.id}/image`, '_blank')}
                                                 />
                                                 <button
                                                     type="button"
@@ -1027,14 +1027,14 @@ export default function TrackDetail() {
                                 {ticket.attachments.filter(a => a.file_type !== 'completion').map(att => (
                                     <img
                                         key={att.id}
-                                        src={`${API}/storage/${att.file_path}`}
+                                        src={`${API}/api/attachments/${att.id}/image`}
                                         alt={att.original_name}
                                         style={{
                                             width: '100%', height: '80px', objectFit: 'cover',
                                             borderRadius: '8px', cursor: 'pointer',
                                             border: '1px solid rgba(255,255,255,0.1)',
                                         }}
-                                        onClick={() => window.open(`${API}/storage/${att.file_path}`, '_blank')}
+                                        onClick={() => window.open(`${API}/api/attachments/${att.id}/image`, '_blank')}
                                     />
                                 ))}
                             </div>
@@ -1049,14 +1049,14 @@ export default function TrackDetail() {
                                 {ticket.attachments.filter(a => a.file_type === 'completion').map(att => (
                                     <img
                                         key={att.id}
-                                        src={`${API}/storage/${att.file_path}`}
+                                        src={`${API}/api/attachments/${att.id}/image`}
                                         alt={att.original_name}
                                         style={{
                                             width: '100%', height: '80px', objectFit: 'cover',
                                             borderRadius: '8px', cursor: 'pointer',
                                             border: '1px solid rgba(16,185,129,0.3)',
                                         }}
-                                        onClick={() => window.open(`${API}/storage/${att.file_path}`, '_blank')}
+                                        onClick={() => window.open(`${API}/api/attachments/${att.id}/image`, '_blank')}
                                     />
                                 ))}
                             </div>

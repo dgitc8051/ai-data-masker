@@ -541,9 +541,9 @@ export default function TicketDetail() {
                                 <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px' }}>📷 現場照片</div>
                                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                                     {ticket.attachments.filter(a => a.file_type !== 'completion').map(att => (
-                                        <img key={att.id} src={`${API}/storage/${att.file_path}`} alt={att.original_name}
+                                        <img key={att.id} src={`${API}/api/attachments/${att.id}/image`} alt={att.original_name}
                                             style={{ width: '120px', height: '120px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #e5e7eb', cursor: 'pointer' }}
-                                            onClick={() => window.open(`${API}/storage/${att.file_path}`, '_blank')} />
+                                            onClick={() => window.open(`${API}/api/attachments/${att.id}/image`, '_blank')} />
                                     ))}
                                 </div>
                             </div>
@@ -555,9 +555,9 @@ export default function TicketDetail() {
                                 <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px', color: '#10b981' }}>✅ 完工照片</div>
                                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                                     {ticket.attachments.filter(a => a.file_type === 'completion').map(att => (
-                                        <img key={att.id} src={`${API}/storage/${att.file_path}`} alt={att.original_name}
+                                        <img key={att.id} src={`${API}/api/attachments/${att.id}/image`} alt={att.original_name}
                                             style={{ width: '120px', height: '120px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #10b981', cursor: 'pointer' }}
-                                            onClick={() => window.open(`${API}/storage/${att.file_path}`, '_blank')} />
+                                            onClick={() => window.open(`${API}/api/attachments/${att.id}/image`, '_blank')} />
                                     ))}
                                 </div>
                             </div>
