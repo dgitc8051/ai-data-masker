@@ -133,7 +133,7 @@ class TicketController extends Controller
                 'is_urgent' => $request->boolean('is_urgent', false),
                 'priority' => $request->boolean('is_urgent') ? 'high' : $request->input('priority', 'medium'),
                 'status' => 'new',
-                'created_by' => $user ? $user->name : $request->input('created_by', '匿名'),
+                'created_by' => $user ? $user->name : ($request->input('customer_name', '匿名') . '(客戶)'),
             ]);
 
             // 同步更新 LINE 客戶名冊（用於回頭客自動帶入）
