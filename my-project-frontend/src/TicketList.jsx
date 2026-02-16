@@ -130,8 +130,8 @@ export default function TicketList() {
                 padding: '4px 0',
             }}>
                 {Object.entries(STATUS_MAP).filter(([k]) => {
-                    const workerStatuses = ['all', 'unaccepted', 'dispatched', 'time_proposed', 'scheduled', 'reschedule', 'in_progress', 'done', 'closed', 'cancelled']
-                    const adminStatuses = ['all', 'new', 'need_more_info', 'info_submitted', 'dispatched', 'unaccepted', 'time_proposed', 'scheduled', 'reschedule', 'in_progress', 'done', 'closed', 'cancelled']
+                    const workerStatuses = ['all', 'unaccepted', 'dispatched', 'time_proposed', 'reschedule', 'in_progress', 'done', 'closed', 'cancelled']
+                    const adminStatuses = ['all', 'new', 'need_more_info', 'info_submitted', 'dispatched', 'unaccepted', 'time_proposed', 'reschedule', 'in_progress', 'done', 'closed', 'cancelled']
                     return (isAdmin ? adminStatuses : workerStatuses).includes(k)
                 })
                     .map(([key, st]) => (

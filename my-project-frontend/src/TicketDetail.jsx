@@ -25,8 +25,7 @@ const STATUS_TRANSITIONS = {
     need_more_info: ['new', 'dispatched', 'cancelled'],
     info_submitted: ['need_more_info', 'dispatched', 'cancelled'],
     dispatched: ['time_proposed', 'reschedule', 'cancelled'],
-    time_proposed: ['scheduled', 'reschedule', 'dispatched', 'cancelled'],
-    scheduled: ['in_progress', 'reschedule', 'cancelled'],
+    time_proposed: ['in_progress', 'reschedule', 'dispatched', 'cancelled'],
     reschedule: ['dispatched', 'time_proposed', 'cancelled'],
     in_progress: ['done', 'reschedule', 'cancelled'],
     done: ['closed'],
@@ -1452,51 +1451,6 @@ export default function TicketDetail() {
                             )}
 
                             {/* 已排定 → 師傅到場開工 */}
-                            {ticket.status === 'scheduled' && (
-                                <div>
-                                    <div style={{ padding: '14px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #86efac', marginBottom: '12px' }}>
-                                        <div style={{ fontWeight: 'bold', color: '#059669', marginBottom: '8px', fontSize: '15px' }}>✅ 客戶已確認，請按時前往</div>
-                                        {ticket.worker_selected_slot && (
-                                            <div style={{ fontSize: '14px', color: '#065f46' }}>
-                                                🗓️ {ticket.worker_selected_slot.label || ticket.worker_selected_slot.datetime}
-                                            </div>
-                                        )}
-                                        {ticket.confirmed_time_slot && (
-                                            <div style={{ fontSize: '14px', color: '#065f46' }}>
-                                                🗓️ {ticket.confirmed_time_slot}
-                                            </div>
-                                        )}
-                                        {ticket.quoted_amount && (
-                                            <div style={{ fontSize: '13px', color: '#065f46', marginTop: '4px' }}>
-                                                💰 預估費用：${ticket.quoted_amount}
-                                            </div>
-                                        )}
-                                    </div>
-                                    <button
-                                        onClick={async () => {
-                                            if (!confirm('師傅已到場，開始施工？')) return
-                                            setSaving(true)
-                                            try {
-                                                await authFetch(`${API}/api/tickets/${ticket.id}/status`, {
-                                                    method: 'PATCH',
-                                                    headers: { 'Content-Type': 'application/json' },
-                                                    body: JSON.stringify({ status: 'in_progress' }),
-                                                })
-                                                fetchTicket()
-                                            } catch (err) {
-                                                alert('更新失敗')
-                                            } finally {
-                                                setSaving(false)
-                                            }
-                                        }}
-                                        disabled={saving}
-                                        className="btn btn-primary"
-                                        style={{ width: '100%', padding: '16px', fontSize: '18px', background: '#059669' }}
-                                    >
-                                        {saving ? '⏳ ...' : '🚗 到場開工'}
-                                    </button>
-                                </div>
-                            )}
 
                             {/* 處理中 → 報價 + 完工 */}
                             {ticket.status === 'in_progress' && (

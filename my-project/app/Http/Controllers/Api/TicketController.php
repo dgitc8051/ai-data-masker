@@ -560,8 +560,7 @@ class TicketController extends Controller
         'need_more_info' => ['new', 'info_submitted', 'dispatched', 'cancelled'],
         'info_submitted' => ['need_more_info', 'dispatched', 'cancelled'],
         'dispatched' => ['time_proposed', 'reschedule', 'cancelled'],
-        'time_proposed' => ['scheduled', 'reschedule', 'dispatched', 'cancelled'],
-        'scheduled' => ['in_progress', 'reschedule', 'cancelled'],
+        'time_proposed' => ['in_progress', 'reschedule', 'dispatched', 'cancelled'],
         'reschedule' => ['dispatched', 'time_proposed', 'cancelled'],
         'in_progress' => ['done', 'reschedule', 'cancelled'],
         'done' => ['closed'],
@@ -1431,7 +1430,7 @@ class TicketController extends Controller
         $ticket->confirmed_by = 'customer';
         $ticket->time_confirmed_at = now();
         $ticket->quote_confirmed_at = now(); // 一次確認時間＋費用
-        $ticket->status = 'scheduled';
+        $ticket->status = 'in_progress'; // 客戶確認後直接進入處理中
         $ticket->save();
 
         // LINE 通知師傅 + 客服
@@ -1884,7 +1883,7 @@ class TicketController extends Controller
             return response()->json(['message' => '找不到此工單'], 404);
         }
 
-        $cancelable = ['dispatched', 'time_proposed', 'scheduled'];
+        $cancelable = ['dispatched', 'time_proposed', 'in_progress'];
         if (!in_array($ticket->status, $cancelable)) {
             return response()->json(['message' => '此工單目前無法取消接單'], 422);
         }
