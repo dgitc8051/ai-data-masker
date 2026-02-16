@@ -51,6 +51,8 @@ export default function TrackDetail() {
     const [rescheduleReason, setRescheduleReason] = useState('')
     const [rescheduleSlots, setRescheduleSlots] = useState([{ date: '', period: 'morning' }])
     const [slotConfirmed, setSlotConfirmed] = useState(false)
+    // 補件用日曆排程
+    const [calendarSlots, setCalendarSlots] = useState([{ date: '', periods: [] }])
 
     // 日期範圍
     const today = new Date()
@@ -77,6 +79,23 @@ export default function TrackDetail() {
         if (cp === 'morning') return PERIOD_OPTIONS.filter(p => p.value !== 'morning')
         if (cp === 'afternoon') return PERIOD_OPTIONS.filter(p => p.value === 'evening')
         return []
+    }
+    // 日曆排程 helpers
+    const addCalendarSlot = () => {
+        if (calendarSlots.length < 3) setCalendarSlots([...calendarSlots, { date: '', periods: [] }])
+    }
+    const removeCalendarSlot = (index) => {
+        if (calendarSlots.length > 1) setCalendarSlots(calendarSlots.filter((_, i) => i !== index))
+    }
+    const togglePeriod = (index, periodValue) => {
+        const updated = [...calendarSlots]
+        const cur = updated[index].periods || []
+        if (cur.includes(periodValue)) {
+            updated[index] = { ...updated[index], periods: cur.filter(p => p !== periodValue) }
+        } else {
+            updated[index] = { ...updated[index], periods: [...cur, periodValue] }
+        }
+        setCalendarSlots(updated)
     }
 
     useEffect(() => {
@@ -122,6 +141,18 @@ export default function TrackDetail() {
                         customDevice,
                         preferred_time_slots: slotsArray,
                     })
+                    // 初始化日曆排程（從 customer_preferred_slots 還原）
+                    if (data.ticket.customer_preferred_slots?.length > 0) {
+                        // 按日期分組
+                        const grouped = {}
+                        data.ticket.customer_preferred_slots.forEach(s => {
+                            if (!grouped[s.date]) grouped[s.date] = []
+                            grouped[s.date].push(s.period)
+                        })
+                        setCalendarSlots(Object.entries(grouped).map(([date, periods]) => ({ date, periods })))
+                    } else {
+                        setCalendarSlots([{ date: '', periods: [] }])
+                    }
                 }
             } else {
                 setError(data.message || '查詢失敗')
@@ -176,10 +207,22 @@ export default function TrackDetail() {
             }
             delete formToSend.customDevice
 
-            // 處理偏好時段複選
+            // 處理偏好時段複選（舊格式）
             if (Array.isArray(formToSend.preferred_time_slots)) {
                 formToSend.preferred_time_slot = formToSend.preferred_time_slots.join(', ')
                 delete formToSend.preferred_time_slots
+            }
+
+            // 日曆偏好時段（展開為個別 {date, period, label}）
+            const expandedSlots = calendarSlots
+                .filter(s => s.date && s.periods?.length > 0)
+                .flatMap(s => s.periods.map(p => ({
+                    date: s.date,
+                    period: p,
+                    label: `${s.date} ${PERIOD_OPTIONS.find(o => o.value === p)?.label || p}`,
+                })))
+            if (expandedSlots.length > 0) {
+                formData.append('customer_preferred_slots', JSON.stringify(expandedSlots))
             }
 
             Object.entries(formToSend).forEach(([key, val]) => {
@@ -428,35 +471,96 @@ export default function TrackDetail() {
                                 </div>
                             </div>
 
-                            {/* 偏好時段（複選） */}
+                            {/* 偏好維修時間（日曆形式） */}
                             <div>
-                                <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', display: 'block', marginBottom: '4px' }}>
-                                    偏好時段（可複選）
+                                <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', display: 'block', marginBottom: '8px' }}>
+                                    📅 偏好維修時間（最多 3 天，每天可複選時段）
                                 </label>
-                                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                    {['上午（09:00-12:00）', '下午（13:00-17:00）', '晚上（18:00-21:00）', '週末皆可'].map(slot => {
-                                        const slots = editForm.preferred_time_slots || []
-                                        const isSelected = slots.includes(slot)
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                    {calendarSlots.map((slot, index) => {
+                                        const availPeriods = slot.date ? getAvailablePeriods(slot.date) : PERIOD_OPTIONS
                                         return (
-                                            <div
-                                                key={slot}
-                                                onClick={() => {
-                                                    const newSlots = isSelected
-                                                        ? slots.filter(s => s !== slot)
-                                                        : [...slots, slot]
-                                                    setEditForm({ ...editForm, preferred_time_slots: newSlots })
-                                                }}
-                                                style={{
-                                                    padding: '6px 12px', borderRadius: '16px', cursor: 'pointer',
-                                                    fontSize: '12px', transition: 'all 0.2s',
-                                                    background: isSelected ? '#4f46e5' : 'rgba(255,255,255,0.08)',
-                                                    color: isSelected ? 'white' : 'rgba(255,255,255,0.7)',
-                                                    border: isSelected ? '1px solid #4f46e5' : '1px solid rgba(255,255,255,0.15)',
-                                                }}
-                                            >{isSelected ? '✓ ' : ''}{slot}</div>
+                                            <div key={index} style={{
+                                                background: 'rgba(255,255,255,0.06)', borderRadius: '10px', padding: '12px',
+                                                border: '1px solid rgba(255,255,255,0.1)',
+                                            }}>
+                                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
+                                                    <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '13px', minWidth: '36px' }}>偏好{index + 1}</span>
+                                                    <input
+                                                        type="date"
+                                                        value={slot.date}
+                                                        min={minDate}
+                                                        max={maxDate}
+                                                        onChange={e => {
+                                                            const updated = [...calendarSlots]
+                                                            const newAvail = getAvailablePeriods(e.target.value).map(p => p.value)
+                                                            const filtered = (slot.periods || []).filter(p => newAvail.includes(p))
+                                                            updated[index] = { ...updated[index], date: e.target.value, periods: filtered }
+                                                            setCalendarSlots(updated)
+                                                        }}
+                                                        style={{
+                                                            flex: 1, padding: '8px 10px', borderRadius: '8px',
+                                                            border: '1px solid rgba(255,255,255,0.2)', fontSize: '14px',
+                                                            background: 'rgba(255,255,255,0.08)', color: '#fff',
+                                                            colorScheme: 'dark',
+                                                        }}
+                                                    />
+                                                    {calendarSlots.length > 1 && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeCalendarSlot(index)}
+                                                            style={{
+                                                                background: 'none', border: 'none', color: '#ef4444',
+                                                                cursor: 'pointer', fontSize: '18px', padding: '0 4px',
+                                                            }}
+                                                        >×</button>
+                                                    )}
+                                                </div>
+                                                {slot.date && (
+                                                    <div style={{ display: 'flex', gap: '8px', paddingLeft: '44px', flexWrap: 'wrap' }}>
+                                                        {availPeriods.map(opt => (
+                                                            <label key={opt.value} style={{
+                                                                display: 'flex', alignItems: 'center', gap: '4px',
+                                                                padding: '6px 12px', borderRadius: '8px', cursor: 'pointer',
+                                                                fontSize: '13px', fontWeight: '500',
+                                                                background: (slot.periods || []).includes(opt.value) ? '#4f46e5' : 'rgba(255,255,255,0.08)',
+                                                                border: `1px solid ${(slot.periods || []).includes(opt.value) ? '#4f46e5' : 'rgba(255,255,255,0.15)'}`,
+                                                                color: (slot.periods || []).includes(opt.value) ? 'white' : 'rgba(255,255,255,0.7)',
+                                                                transition: 'all 0.15s',
+                                                            }}>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={(slot.periods || []).includes(opt.value)}
+                                                                    onChange={() => togglePeriod(index, opt.value)}
+                                                                    style={{ display: 'none' }}
+                                                                />
+                                                                {(slot.periods || []).includes(opt.value) ? '✅' : '⬜'} {opt.label}
+                                                            </label>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                {slot.date && availPeriods.length === 0 && (
+                                                    <div style={{ paddingLeft: '44px', color: '#fca5a5', fontSize: '12px' }}>
+                                                        ⚠️ 今天已無可選時段，請選擇其他日期
+                                                    </div>
+                                                )}
+                                            </div>
                                         )
                                     })}
                                 </div>
+                                {calendarSlots.length < 3 && (
+                                    <button
+                                        type="button"
+                                        onClick={addCalendarSlot}
+                                        style={{
+                                            marginTop: '8px', background: 'none', border: '1px dashed rgba(255,255,255,0.2)',
+                                            borderRadius: '8px', padding: '8px 16px', color: 'rgba(255,255,255,0.5)',
+                                            cursor: 'pointer', fontSize: '13px', width: '100%',
+                                        }}
+                                    >
+                                        + 新增其他日期
+                                    </button>
+                                )}
                             </div>
 
                             <div>
