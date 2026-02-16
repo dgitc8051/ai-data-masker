@@ -1347,17 +1347,39 @@ export default function TicketDetail() {
                                 </>
                             )}
 
-                            {/* 師傅已提供時段 → 等客戶確認 */}
+                            {/* 師傅已接案 / 已提供時段 → 等客戶確認 */}
                             {ticket.status === 'time_proposed' && (
                                 <div>
                                     <div style={{ padding: '14px', background: '#ede9fe', borderRadius: '8px', border: '1px solid #a78bfa', marginBottom: '10px' }}>
-                                        <div style={{ fontWeight: 'bold', color: '#6d28d9', marginBottom: '6px' }}>📅 等待客戶確認時段</div>
-                                        <div style={{ fontSize: '13px', color: '#5b21b6' }}>
-                                            {(ticket.proposed_time_slots || []).map((s, i) => (
-                                                <div key={i}>• {s.date} {s.time}</div>
-                                            ))}
+                                        <div style={{ fontWeight: 'bold', color: '#6d28d9', marginBottom: '10px', fontSize: '15px' }}>⏳ 等待客戶確認中</div>
+
+                                        {/* 顯示接案資訊 */}
+                                        {ticket.worker_selected_slot && (
+                                            <div style={{ fontSize: '13px', color: '#5b21b6', marginBottom: '6px' }}>
+                                                🗓️ 預定時間：{ticket.worker_selected_slot.label || ticket.worker_selected_slot.datetime}
+                                            </div>
+                                        )}
+                                        {ticket.quoted_amount && (
+                                            <div style={{ fontSize: '13px', color: '#5b21b6', marginBottom: '6px' }}>
+                                                💰 預估費用：${ticket.quoted_amount}
+                                            </div>
+                                        )}
+
+                                        {/* 顯示師傅提供的多個時段 */}
+                                        {(ticket.proposed_time_slots || []).length > 0 && (
+                                            <div style={{ marginTop: '8px' }}>
+                                                <div style={{ fontSize: '12px', color: '#7c3aed', fontWeight: '600', marginBottom: '4px' }}>可用時段：</div>
+                                                {ticket.proposed_time_slots.map((s, i) => (
+                                                    <div key={i} style={{ fontSize: '13px', color: '#5b21b6' }}>• {s.date} {s.time}</div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        <div style={{ fontSize: '12px', color: '#7c3aed', marginTop: '10px', padding: '8px', background: '#f5f3ff', borderRadius: '6px' }}>
+                                            💬 客戶確認後會自動轉為「已排定」，屆時按時前往即可
                                         </div>
                                     </div>
+
                                     {/* 取消接單 */}
                                     <button
                                         onClick={() => setSelectedStatus(selectedStatus === 'cancel_accept' ? '' : 'cancel_accept')}
@@ -1401,6 +1423,53 @@ export default function TicketDetail() {
                                             </button>
                                         </div>
                                     )}
+                                </div>
+                            )}
+
+                            {/* 已排定 → 師傅到場開工 */}
+                            {ticket.status === 'scheduled' && (
+                                <div>
+                                    <div style={{ padding: '14px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #86efac', marginBottom: '12px' }}>
+                                        <div style={{ fontWeight: 'bold', color: '#059669', marginBottom: '8px', fontSize: '15px' }}>✅ 客戶已確認，請按時前往</div>
+                                        {ticket.worker_selected_slot && (
+                                            <div style={{ fontSize: '14px', color: '#065f46' }}>
+                                                🗓️ {ticket.worker_selected_slot.label || ticket.worker_selected_slot.datetime}
+                                            </div>
+                                        )}
+                                        {ticket.confirmed_time_slot && (
+                                            <div style={{ fontSize: '14px', color: '#065f46' }}>
+                                                🗓️ {ticket.confirmed_time_slot}
+                                            </div>
+                                        )}
+                                        {ticket.quoted_amount && (
+                                            <div style={{ fontSize: '13px', color: '#065f46', marginTop: '4px' }}>
+                                                💰 預估費用：${ticket.quoted_amount}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={async () => {
+                                            if (!confirm('師傅已到場，開始施工？')) return
+                                            setSaving(true)
+                                            try {
+                                                await authFetch(`${API}/api/tickets/${ticket.id}/status`, {
+                                                    method: 'PATCH',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({ status: 'in_progress' }),
+                                                })
+                                                fetchTicket()
+                                            } catch (err) {
+                                                alert('更新失敗')
+                                            } finally {
+                                                setSaving(false)
+                                            }
+                                        }}
+                                        disabled={saving}
+                                        className="btn btn-primary"
+                                        style={{ width: '100%', padding: '16px', fontSize: '18px', background: '#059669' }}
+                                    >
+                                        {saving ? '⏳ ...' : '🚗 到場開工'}
+                                    </button>
                                 </div>
                             )}
 

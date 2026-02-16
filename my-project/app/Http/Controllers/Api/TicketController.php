@@ -753,8 +753,8 @@ class TicketController extends Controller
         $selectedTime = $request->input('selected_time');
         $quotedAmount = $request->input('quoted_amount');
 
-        // 更新狀態
-        $ticket->status = 'in_progress';
+        // 更新狀態（待客戶確認，不是直接進 in_progress）
+        $ticket->status = 'time_proposed';
         $ticket->accepted_at = now();
         $ticket->quoted_amount = $quotedAmount;
         $ticket->worker_selected_slot = [
@@ -786,12 +786,15 @@ class TicketController extends Controller
                 ->toArray();
             $lineService->pushToMultiple(
                 $adminLineIds,
-                "📥 {$ticket->ticket_no} 已接案\n師傅：{$user->name}（{$user->phone}）\n🗓️ 預定時間：{$selectedTime}\n💰 預估費用：\${$quotedAmount}"
+                "📥 {$ticket->ticket_no} 已接案\n師傅：{$user->name}（{$user->phone}）\n🗓️ 預定時間：{$selectedTime}\n💰 預估費用：\${$quotedAmount}\n⏳ 等待客戶確認中"
             );
 
-            // 通知客戶：師傅已接案 + 確切時間 + 預估費用 + 車馬費說明
+            // 通知客戶：師傅已接案 + 確切時間 + 預估費用 + 車馬費說明 + 確認連結
+            $frontendUrl = config('app.frontend_url', 'https://ai-data-masker-production-fda9.up.railway.app');
+            $pricingUrl = $frontendUrl . '/pricing';
+            $confirmUrl = $frontendUrl . '/track';
+
             if ($ticket->customer_line_id) {
-                $pricingUrl = config('app.frontend_url', 'https://ai-data-masker-production-fda9.up.railway.app') . '/pricing';
                 $lineService->pushMessage(
                     $ticket->customer_line_id,
                     "📋 您的維修單 {$ticket->ticket_no} 已安排！\n\n"
@@ -802,7 +805,14 @@ class TicketController extends Controller
                     . "⚠️ 以上費用僅供參考，實際金額依現場狀況為準。\n"
                     . "⚠️ 師傅到場後若不維修，須酌收基礎檢測費，\n"
                     . "　詳見費用說明：{$pricingUrl}\n\n"
-                    . "如需改期請聯繫師傅或客服。"
+                    . "👉 請確認或取消：\n{$confirmUrl}\n"
+                    . "輸入維修編號和手機號碼即可操作。"
+                );
+            } else {
+                // 無 LINE ID（代客建單）→ 通知管理員代為確認
+                $lineService->pushToMultiple(
+                    $adminLineIds,
+                    "📌 {$ticket->ticket_no} 為代客建單，客戶無 LINE\n請客服電話聯繫客戶確認：\n📞 {$ticket->phone}\n🗓️ 時間：{$selectedTime}\n💰 預估：\${$quotedAmount}"
                 );
             }
         } catch (\Exception $e) {
@@ -831,8 +841,8 @@ class TicketController extends Controller
             return response()->json(['message' => '找不到此工單'], 404);
         }
 
-        if (!in_array($ticket->status, ['in_progress', 'dispatched'])) {
-            return response()->json(['message' => '目前狀態不允許報價'], 422);
+        if ($ticket->status !== 'in_progress') {
+            return response()->json(['message' => '目前狀態不允許修改報價，僅處理中可修改'], 422);
         }
 
         $user = $request->user();
@@ -1868,7 +1878,7 @@ class TicketController extends Controller
             return response()->json(['message' => '找不到此工單'], 404);
         }
 
-        $cancelable = ['dispatched', 'time_proposed'];
+        $cancelable = ['dispatched', 'time_proposed', 'scheduled'];
         if (!in_array($ticket->status, $cancelable)) {
             return response()->json(['message' => '此工單目前無法取消接單'], 422);
         }
