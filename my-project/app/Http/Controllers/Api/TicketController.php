@@ -538,10 +538,12 @@ class TicketController extends Controller
                 );
                 // 完工 → 也通知客戶
                 if ($ticket->customer_line_id) {
+                    $customerAmount = $ticket->actual_amount ? "💰 費用：\${$ticket->actual_amount} 元\n" : '';
                     $lineService->pushMessage(
                         $ticket->customer_line_id,
                         "🎉 您的維修單 {$ticket->ticket_no} 已完工！\n\n"
                         . "師傅：{$workerName}\n"
+                        . $customerAmount
                         . ($ticket->completion_note ? "說明：{$ticket->completion_note}\n\n" : "\n")
                         . "感謝您的耐心等候，如有問題請隨時聯繫我們。"
                     );
