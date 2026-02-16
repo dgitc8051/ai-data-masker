@@ -118,21 +118,24 @@ export default function TicketList() {
                 display: 'flex', gap: '6px', marginBottom: '20px', overflowX: 'auto',
                 padding: '4px 0',
             }}>
-                {Object.entries(STATUS_MAP).filter(([k]) =>
-                    ['all', 'new', 'need_more_info', 'info_submitted', 'dispatched', 'time_proposed', 'scheduled', 'reschedule', 'in_progress', 'done', 'closed', 'cancelled'].includes(k)
-                ).map(([key, st]) => (
-                    <button
-                        key={key}
-                        onClick={() => setStatusFilter(key)}
-                        style={{
-                            padding: '6px 14px', borderRadius: '20px', border: 'none',
-                            fontSize: '13px', cursor: 'pointer', whiteSpace: 'nowrap',
-                            transition: 'all 0.2s',
-                            background: statusFilter === key ? st.color : '#f3f4f6',
-                            color: statusFilter === key ? 'white' : '#374151',
-                        }}
-                    >{st.label}</button>
-                ))}
+                {Object.entries(STATUS_MAP).filter(([k]) => {
+                    const workerStatuses = ['all', 'dispatched', 'time_proposed', 'scheduled', 'reschedule', 'in_progress', 'done', 'closed', 'cancelled']
+                    const adminStatuses = ['all', 'new', 'need_more_info', 'info_submitted', 'dispatched', 'time_proposed', 'scheduled', 'reschedule', 'in_progress', 'done', 'closed', 'cancelled']
+                    return (isAdmin ? adminStatuses : workerStatuses).includes(k)
+                })
+                    .map(([key, st]) => (
+                        <button
+                            key={key}
+                            onClick={() => setStatusFilter(key)}
+                            style={{
+                                padding: '6px 14px', borderRadius: '20px', border: 'none',
+                                fontSize: '13px', cursor: 'pointer', whiteSpace: 'nowrap',
+                                transition: 'all 0.2s',
+                                background: statusFilter === key ? st.color : '#f3f4f6',
+                                color: statusFilter === key ? 'white' : '#374151',
+                            }}
+                        >{st.label}</button>
+                    ))}
             </div>
 
             {/* 統計 */}
