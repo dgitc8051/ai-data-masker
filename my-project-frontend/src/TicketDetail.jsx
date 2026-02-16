@@ -86,12 +86,11 @@ export default function TicketDetail() {
 
     useEffect(() => {
         fetchTicket()
-        if (isAdmin) {
-            authFetch(`${API}/api/users/workers`)
-                .then(res => res.json())
-                .then(data => setWorkers(data))
-                .catch(() => { })
-        }
+        // 管理員需要師傅列表（派工），主師傅也需要（加協助人員）
+        authFetch(`${API}/api/users/workers`)
+            .then(res => res.json())
+            .then(data => setWorkers(data))
+            .catch(() => { })
     }, [id]) // eslint-disable-line
 
     // 更新狀態
