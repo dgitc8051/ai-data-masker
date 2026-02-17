@@ -122,7 +122,8 @@ export default function RepairTrack() {
     }
 
     const goToDetail = (ticket) => {
-        navigate(`/track/${ticket.id}`, {
+        const params = lineUserId ? `?line_user_id=${encodeURIComponent(lineUserId)}` : ''
+        navigate(`/track/${ticket.id}${params}`, {
             state: {
                 line_user_id: lineUserId,
                 phone: phone ? `09${phone}` : '',
