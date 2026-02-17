@@ -14,6 +14,7 @@ const STATUS_MAP = {
     reschedule: { label: '改期中', color: '#f59e0b' },
     in_progress: { label: '處理中', color: '#f97316' },
     done: { label: '完工', color: '#10b981' },
+    accepted: { label: '已驗收', color: '#22c55e' },
     closed: { label: '結案', color: '#9ca3af' },
     cancelled: { label: '已取消', color: '#ef4444' },
     // 舊狀態相容
@@ -130,8 +131,8 @@ export default function TicketList() {
                 padding: '4px 0',
             }}>
                 {Object.entries(STATUS_MAP).filter(([k]) => {
-                    const workerStatuses = ['all', 'unaccepted', 'dispatched', 'time_proposed', 'reschedule', 'in_progress', 'done', 'closed', 'cancelled']
-                    const adminStatuses = ['all', 'new', 'need_more_info', 'info_submitted', 'dispatched', 'unaccepted', 'time_proposed', 'reschedule', 'in_progress', 'done', 'closed', 'cancelled']
+                    const workerStatuses = ['all', 'unaccepted', 'dispatched', 'time_proposed', 'reschedule', 'in_progress', 'done', 'accepted', 'closed', 'cancelled']
+                    const adminStatuses = ['all', 'new', 'need_more_info', 'info_submitted', 'dispatched', 'unaccepted', 'time_proposed', 'reschedule', 'in_progress', 'done', 'accepted', 'closed', 'cancelled']
                     return (isAdmin ? adminStatuses : workerStatuses).includes(k)
                 })
                     .map(([key, st]) => (

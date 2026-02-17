@@ -14,13 +14,14 @@ const statusMap = {
     reschedule: { label: '改期中', color: '#f59e0b', icon: '🔄' },
     in_progress: { label: '處理中', color: '#8b5cf6', icon: '🔧' },
     done: { label: '已完工', color: '#10b981', icon: '✅' },
+    accepted: { label: '已驗收', color: '#22c55e', icon: '👍' },
     completed: { label: '已結案', color: '#6b7280', icon: '📁' },
     closed: { label: '已關閉', color: '#6b7280', icon: '🔒' },
     cancelled: { label: '已取消', color: '#ef4444', icon: '❌' },
 }
 
 // 進度步驟
-const statusSteps = ['new', 'dispatched', 'scheduled', 'in_progress', 'done', 'closed']
+const statusSteps = ['new', 'dispatched', 'scheduled', 'in_progress', 'done', 'accepted', 'closed']
 
 export default function TrackDetail() {
     const { id } = useParams()
@@ -1294,8 +1295,103 @@ export default function TrackDetail() {
                     )}
                 </div>
 
+                {/* ===== 客戶驗收區域（完工後顯示）===== */}
+                {ticket.status === 'done' && (
+                    <div style={{
+                        background: 'rgba(16,185,129,0.08)', borderRadius: '16px',
+                        padding: '24px', border: '1px solid rgba(16,185,129,0.2)',
+                        marginBottom: '16px',
+                    }}>
+                        <div style={{ color: '#10b981', fontSize: '16px', fontWeight: '700', marginBottom: '12px' }}>
+                            ✅ 維修已完工，請確認驗收
+                        </div>
+                        <div style={{
+                            background: 'rgba(255,255,255,0.06)', borderRadius: '10px',
+                            padding: '14px', marginBottom: '14px',
+                        }}>
+                            <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginBottom: '6px' }}>完工資訊</div>
+                            {ticket.actual_amount && (
+                                <div style={{ color: '#fff', fontSize: '15px', marginBottom: '4px' }}>
+                                    💰 實收金額：<span style={{ color: '#10b981', fontWeight: '700' }}>${ticket.actual_amount} 元</span>
+                                </div>
+                            )}
+                            {ticket.completion_note && (
+                                <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '13px' }}>
+                                    📝 說明：{ticket.completion_note}
+                                </div>
+                            )}
+                            {ticket.completed_at && (
+                                <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px', marginTop: '6px' }}>
+                                    完工時間：{new Date(ticket.completed_at).toLocaleString('zh-TW')}
+                                </div>
+                            )}
+                        </div>
+                        <div style={{
+                            color: 'rgba(255,255,255,0.5)', fontSize: '12px',
+                            marginBottom: '14px', lineHeight: '1.6',
+                        }}>
+                            ⚠️ 請確認師傅的維修結果與金額正確無誤後，再點擊「確認驗收」。
+                            如有問題請立即告知師傅或聯繫客服。
+                        </div>
+                        <button
+                            onClick={async () => {
+                                if (!confirm('確認維修結果無誤並完成驗收？')) return
+                                setSubmitting(true)
+                                try {
+                                    const body = { line_user_id: lineUserId, phone, ticket_no: ticketNo }
+                                    const res = await fetch(
+                                        `${API}/api/tickets/track/${id}/accept-completion`,
+                                        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+                                    )
+                                    const data = await res.json()
+                                    if (res.ok) {
+                                        alert('✅ 驗收完成！感謝您使用我們的服務。')
+                                        fetchDetail()
+                                    } else {
+                                        alert(data.message || '驗收失敗')
+                                    }
+                                } catch { alert('網路錯誤') }
+                                finally { setSubmitting(false) }
+                            }}
+                            disabled={submitting}
+                            style={{
+                                width: '100%', padding: '16px', borderRadius: '12px',
+                                border: 'none', cursor: 'pointer',
+                                background: 'linear-gradient(135deg, #10b981, #059669)',
+                                color: '#fff', fontSize: '17px', fontWeight: '700',
+                                opacity: submitting ? 0.5 : 1,
+                                boxShadow: '0 4px 16px rgba(16,185,129,0.3)',
+                            }}
+                        >
+                            {submitting ? '⏳ 驗收中...' : '👍 確認驗收'}
+                        </button>
+                    </div>
+                )}
+
+                {/* 已驗收顯示 */}
+                {ticket.status === 'accepted' && (
+                    <div style={{
+                        background: 'rgba(34,197,94,0.08)', borderRadius: '16px',
+                        padding: '24px', border: '1px solid rgba(34,197,94,0.2)',
+                        marginBottom: '16px', textAlign: 'center',
+                    }}>
+                        <div style={{ fontSize: '36px', marginBottom: '8px' }}>👍</div>
+                        <div style={{ color: '#22c55e', fontSize: '16px', fontWeight: '700', marginBottom: '8px' }}>
+                            已驗收完成
+                        </div>
+                        <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '13px' }}>
+                            💰 實收金額：${ticket.actual_amount} 元
+                        </div>
+                        {ticket.accepted_at && (
+                            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '12px', marginTop: '4px' }}>
+                                驗收時間：{new Date(ticket.accepted_at).toLocaleString('zh-TW')}
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* 客戶取消工單 */}
-                {!['done', 'closed', 'cancelled'].includes(ticket.status) && (
+                {!['done', 'accepted', 'closed', 'cancelled'].includes(ticket.status) && (
                     <div style={{ marginBottom: '16px' }}>
                         <button
                             onClick={() => setShowCancel(!showCancel)}

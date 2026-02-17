@@ -563,7 +563,8 @@ class TicketController extends Controller
         'time_proposed' => ['in_progress', 'reschedule', 'dispatched', 'cancelled'],
         'reschedule' => ['dispatched', 'time_proposed', 'cancelled'],
         'in_progress' => ['done', 'reschedule', 'cancelled'],
-        'done' => ['closed'],
+        'done' => ['accepted', 'closed'],  // 完工後客戶驗收
+        'accepted' => ['closed'],           // 驗收後結案
         'closed' => [],
         'cancelled' => ['new'],  // 取消後可重新開單
     ];
@@ -597,12 +598,14 @@ class TicketController extends Controller
         $ticket->status = $newStatus;
 
         if ($newStatus === 'done' || $newStatus === 'completed') {
+            // 實收金額必填
+            if (!$request->has('actual_amount') || $request->input('actual_amount') === null || $request->input('actual_amount') === '') {
+                return response()->json(['message' => '請填寫實收金額'], 422);
+            }
             $ticket->completed_at = now();
+            $ticket->actual_amount = $request->input('actual_amount');
             if ($request->has('completion_note')) {
                 $ticket->completion_note = $request->input('completion_note');
-            }
-            if ($request->has('actual_amount')) {
-                $ticket->actual_amount = $request->input('actual_amount');
             }
         }
 
@@ -638,16 +641,18 @@ class TicketController extends Controller
                     $adminLineIds,
                     "✅ {$ticket->ticket_no} 已完工\n師傅：{$workerName}{$amountInfo}{$noteInfo}"
                 );
-                // 完工 → 也通知客戶
+                // 完工 → 通知客戶確認驗收
                 if ($ticket->customer_line_id) {
-                    $customerAmount = $ticket->actual_amount ? "💰 費用：\${$ticket->actual_amount} 元\n" : '';
+                    $frontendUrl = env('FRONTEND_URL', 'https://ai-data-masker-production-fda9.up.railway.app');
                     $lineService->pushMessage(
                         $ticket->customer_line_id,
                         "🎉 您的維修單 {$ticket->ticket_no} 已完工！\n\n"
                         . "師傅：{$workerName}\n"
-                        . $customerAmount
+                        . "💰 費用：\${$ticket->actual_amount} 元\n"
                         . ($ticket->completion_note ? "說明：{$ticket->completion_note}\n\n" : "\n")
-                        . "感謝您的耐心等候，如有問題請隨時聯繫我們。"
+                        . "請確認維修結果無誤後，點擊以下連結完成驗收：\n"
+                        . "{$frontendUrl}/track/{$ticket->id}?line_user_id={$ticket->customer_line_id}\n\n"
+                        . "⚠️ 如有問題請立即聯繫師傅或客服。"
                     );
                 }
             }
@@ -1070,6 +1075,7 @@ class TicketController extends Controller
                 'cancel_reason' => $ticket->cancel_reason ?? '',
                 'created_at' => $ticket->created_at,
                 'completed_at' => $ticket->completed_at,
+                'accepted_at' => $ticket->accepted_at,
                 'updated_at' => $ticket->updated_at,
             ];
 
@@ -1884,6 +1890,68 @@ class TicketController extends Controller
         return response()->json([
             'message' => '工單已取消',
             'ticket' => ['id' => $ticket->id, 'status' => $ticket->status],
+        ]);
+    }
+
+    /**
+     * 客戶確認驗收（公開 API）
+     * POST /api/tickets/track/{id}/accept-completion
+     */
+    public function customerAcceptTicket(Request $request, $id)
+    {
+        $ticket = $this->findTrackTicket($request, $id);
+        if (!$ticket) {
+            return response()->json(['message' => '找不到此工單，或驗證資訊不符'], 404);
+        }
+
+        if ($ticket->status !== 'done') {
+            return response()->json(['message' => '此工單目前不接受驗收確認'], 422);
+        }
+
+        $ticket->status = 'accepted';
+        $ticket->accepted_at = now();
+        $ticket->save();
+
+        // LINE 通知師傅 + 客服
+        try {
+            $lineService = new LineNotifyService();
+            $msg = "✅ {$ticket->ticket_no} 客戶已確認驗收\n實收金額：\${$ticket->actual_amount}\n\n工單可進行結案。";
+
+            $adminLineIds = User::where('role', 'admin')
+                ->whereNotNull('line_user_id')
+                ->pluck('line_user_id')
+                ->toArray();
+            $lineService->pushToMultiple($adminLineIds, $msg);
+
+            $workerLineIds = $ticket->assignedUsers()
+                ->whereNotNull('line_user_id')
+                ->pluck('line_user_id')
+                ->toArray();
+            if (!empty($workerLineIds)) {
+                $lineService->pushToMultiple($workerLineIds, $msg);
+            }
+
+            // 通知客戶確認成功
+            if ($ticket->customer_line_id) {
+                $lineService->pushMessage(
+                    $ticket->customer_line_id,
+                    "✅ 您的維修單 {$ticket->ticket_no} 已驗收完成！\n\n"
+                    . "💰 費用：\${$ticket->actual_amount} 元\n\n"
+                    . "感謝您使用我們的服務，如有問題請隨時聯繫。\n"
+                    . "祝您生活愉快！"
+                );
+            }
+        } catch (\Exception $e) {
+            \Log::warning('LINE 驗收通知失敗: ' . $e->getMessage());
+        }
+
+        return response()->json([
+            'message' => '驗收確認成功',
+            'ticket' => [
+                'id' => $ticket->id,
+                'status' => $ticket->status,
+                'accepted_at' => $ticket->accepted_at,
+            ],
         ]);
     }
 

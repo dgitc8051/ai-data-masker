@@ -275,10 +275,10 @@ export default function TicketDetail() {
     // 師傅完工回報
     const handleCompletion = async () => {
         if (!actualAmount) {
-            if (!confirm('⚠️ 尚未填寫實收金額，確定要回報完工嗎？')) return
-        } else {
-            if (!confirm('確定要回報完工嗎？')) return
+            alert('⚠️ 請填寫實收金額後再回報完工')
+            return
         }
+        if (!confirm('確定要回報完工嗎？')) return
         setSaving(true)
         try {
             // 上傳完工照
@@ -1525,7 +1525,7 @@ export default function TicketDetail() {
                                     {/* 實收金額 */}
                                     <div style={{ padding: '14px 16px', background: '#f9fafb', borderRadius: '10px' }}>
                                         <label style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px', display: 'block' }}>
-                                            💵 實收金額 <span style={{ color: '#9ca3af', fontSize: '12px' }}>（選填）</span>
+                                            💵 實收金額 <span style={{ color: '#ef4444', fontSize: '12px' }}>（必填）</span>
                                         </label>
                                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                                             <span style={{ fontSize: '18px', fontWeight: 'bold' }}>$</span>
@@ -1659,7 +1659,28 @@ export default function TicketDetail() {
                                 }}>
                                     <div style={{ fontSize: '28px', marginBottom: '8px' }}>✅</div>
                                     <div style={{ fontWeight: 'bold', color: '#10b981' }}>已回報完工</div>
-                                    <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>等待客服確認結案</div>
+                                    <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>等待客戶驗收確認</div>
+                                    {ticket.actual_amount && (
+                                        <div style={{ fontSize: '14px', color: '#059669', marginTop: '8px', fontWeight: '600' }}>💰 實收金額：${ticket.actual_amount} 元</div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* 已驗收 */}
+                            {ticket.status === 'accepted' && (
+                                <div style={{
+                                    padding: '20px', textAlign: 'center', borderRadius: '10px',
+                                    background: '#f0fdf4', border: '1px solid #86efac',
+                                }}>
+                                    <div style={{ fontSize: '28px', marginBottom: '8px' }}>👍</div>
+                                    <div style={{ fontWeight: 'bold', color: '#22c55e' }}>客戶已驗收</div>
+                                    <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>可進行結案</div>
+                                    {ticket.actual_amount && (
+                                        <div style={{ fontSize: '14px', color: '#059669', marginTop: '8px', fontWeight: '600' }}>💰 實收金額：${ticket.actual_amount} 元</div>
+                                    )}
+                                    {ticket.accepted_at && (
+                                        <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>驗收時間：{new Date(ticket.accepted_at).toLocaleString('zh-TW')}</div>
+                                    )}
                                 </div>
                             )}
 

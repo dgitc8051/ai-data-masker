@@ -30,6 +30,7 @@ Route::middleware('throttle:10,1')->group(function () {
     Route::post('/tickets/track/{id}/customer-confirm-slot', [TicketController::class, 'customerConfirmSlot']); // 客戶確認師傅選的時段
     Route::post('/tickets/track/{id}/reschedule', [TicketController::class, 'customerReschedule']); // 客戶改期
     Route::post('/tickets/track/{id}/cancel', [TicketController::class, 'customerCancelTicket']); // 客戶取消
+    Route::post('/tickets/track/{id}/accept-completion', [TicketController::class, 'customerAcceptTicket']); // 客戶驗收
 });
 Route::post('/line/webhook', [LineWebhookController::class, 'webhook']); // LINE Webhook
 Route::post('/line-customers/register', [LineCustomerController::class, 'register']); // LIFF 客戶註冊
