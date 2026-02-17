@@ -1985,8 +1985,8 @@ class TicketController extends Controller
     {
         if (!$address)
             return '';
-        // 嘗試匹配「XX市/縣 XX區/鎮/鄉」
-        if (preg_match('/^(.{2,3}[市縣].{2,3}[區鎮鄉市])/', $address, $matches)) {
+        // 嘗試匹配「XX市/縣 XX區/鎮/鄉」（加 u flag 支援 UTF-8）
+        if (preg_match('/^(.{2,3}[市縣].{2,3}[區鎮鄉市])/u', $address, $matches)) {
             return $matches[1] . '***';
         }
         // fallback：只顯示前 6 個字
