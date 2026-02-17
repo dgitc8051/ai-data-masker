@@ -278,31 +278,38 @@ export default function TicketDetail() {
             alert('⚠️ 請填寫實收金額後再回報完工')
             return
         }
-        if (!confirm('確定要回報完工嗎？')) return
-        setSaving(true)
-        try {
-            // 上傳完工照
-            if (completionPhotos.length > 0) {
-                const formData = new FormData()
-                completionPhotos.forEach(f => formData.append('attachments[]', f))
-                formData.append('type', 'completion')
-                await authFetch(`${API}/api/tickets/${id}/attachments`, {
-                    method: 'POST',
-                    body: formData,
+        // 使用 setTimeout 避免 React re-render 導致 confirm 被關閉
+        const doCompletion = async () => {
+            setSaving(true)
+            try {
+                // 上傳完工照
+                if (completionPhotos.length > 0) {
+                    const formData = new FormData()
+                    completionPhotos.forEach(f => formData.append('attachments[]', f))
+                    formData.append('type', 'completion')
+                    await authFetch(`${API}/api/tickets/${id}/attachments`, {
+                        method: 'POST',
+                        body: formData,
+                    })
+                }
+                // 更新狀態為完工（含說明+金額）
+                await updateStatus('done', {
+                    completion_note: completionNote || undefined,
+                    actual_amount: actualAmount ? Number(actualAmount) : undefined,
                 })
+                setCompletionPhotos([])
+                setCompletionNote('')
+                setActualAmount('')
+            } catch (err) {
+                alert('回報失敗：' + err.message)
             }
-            // 更新狀態為完工（含說明+金額）
-            await updateStatus('done', {
-                completion_note: completionNote || undefined,
-                actual_amount: actualAmount ? Number(actualAmount) : undefined,
-            })
-            setCompletionPhotos([])
-            setCompletionNote('')
-            setActualAmount('')
-        } catch (err) {
-            alert('回報失敗：' + err.message)
+            setSaving(false)
         }
-        setSaving(false)
+        setTimeout(() => {
+            if (window.confirm('確定要回報完工嗎？')) {
+                doCompletion()
+            }
+        }, 10)
     }
 
     // 師傅選擇時段
@@ -1536,7 +1543,7 @@ export default function TicketDetail() {
                                     </div>
 
                                     {/* 完工回報按鈕 */}
-                                    <button onClick={handleCompletion} disabled={saving}
+                                    <button type="button" onClick={handleCompletion} disabled={saving}
                                         className="btn btn-primary"
                                         style={{ padding: '16px', fontSize: '16px', background: '#10b981' }}>
                                         {saving ? '⏳ 回報中...' : '✅ 完工回報'}
