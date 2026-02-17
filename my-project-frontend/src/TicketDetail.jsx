@@ -274,7 +274,11 @@ export default function TicketDetail() {
 
     // 師傅完工回報
     const handleCompletion = async () => {
-        if (!confirm('確定要回報完工嗎？')) return
+        if (!actualAmount) {
+            if (!confirm('⚠️ 尚未填寫實收金額，確定要回報完工嗎？')) return
+        } else {
+            if (!confirm('確定要回報完工嗎？')) return
+        }
         setSaving(true)
         try {
             // 上傳完工照

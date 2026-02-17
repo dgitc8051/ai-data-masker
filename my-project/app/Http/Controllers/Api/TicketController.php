@@ -256,7 +256,7 @@ class TicketController extends Controller
         return response()->json([
             'message' => '工單建立成功',
             'ticket' => $ticket,
-        ], 201);
+        ], 201, [], JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     /**
@@ -345,7 +345,7 @@ class TicketController extends Controller
         return response()->json([
             'message' => '工單更新成功',
             'ticket' => $ticket,
-        ]);
+        ], 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     /**
@@ -724,7 +724,7 @@ class TicketController extends Controller
         return response()->json([
             'message' => '狀態更新成功',
             'ticket' => $ticket,
-        ]);
+        ], 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     /**
@@ -831,7 +831,7 @@ class TicketController extends Controller
         return response()->json([
             'message' => '已接案',
             'ticket' => $ticket,
-        ]);
+        ], 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     /**
@@ -898,7 +898,7 @@ class TicketController extends Controller
         return response()->json([
             'message' => '預估費用已記錄，等待客戶確認',
             'ticket' => $ticket,
-        ]);
+        ], 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     /**
@@ -1267,7 +1267,7 @@ class TicketController extends Controller
         return response()->json([
             'message' => '時段已提交',
             'ticket' => $ticket,
-        ]);
+        ], 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     /**
@@ -1763,7 +1763,7 @@ class TicketController extends Controller
         return response()->json([
             'message' => '代客確認報價成功',
             'ticket' => $ticket,
-        ]);
+        ], 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     /**
@@ -1827,7 +1827,7 @@ class TicketController extends Controller
         return response()->json([
             'message' => '代客確認時段成功',
             'ticket' => $ticket,
-        ]);
+        ], 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     /**
@@ -1955,7 +1955,7 @@ class TicketController extends Controller
         return response()->json([
             'message' => '已取消接單，工單回到待派工',
             'ticket' => $ticket,
-        ]);
+        ], 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     // === 遮罩工具 ===
