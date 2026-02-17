@@ -15,6 +15,11 @@
   box-sizing: border-box;
 }
 
+/* 防止非輸入區域出現文字游標 */
+*:not(input):not(textarea):not(select):not([contenteditable="true"]) {
+  caret-color: transparent;
+}
+
 a {
   font-weight: 500;
   color: #4f46e5;
