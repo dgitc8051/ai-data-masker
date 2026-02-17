@@ -1505,19 +1505,46 @@ export default function TicketDetail() {
                                     {/* 完工照片 */}
                                     <div style={{ padding: '14px 16px', background: '#f9fafb', borderRadius: '10px' }}>
                                         <label style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px', display: 'block' }}>
-                                            📷 完工照片 <span style={{ color: '#9ca3af', fontSize: '12px' }}>（選填，可多張）</span>
+                                            📷 完工照片 <span style={{ color: '#9ca3af', fontSize: '12px' }}>（選填，可多張，最多5張）</span>
                                         </label>
                                         <input type="file" accept="image/*" multiple
-                                            onChange={e => setCompletionPhotos(Array.from(e.target.files).slice(0, 5))}
+                                            onChange={e => {
+                                                const newFiles = Array.from(e.target.files)
+                                                setCompletionPhotos(prev => [...prev, ...newFiles].slice(0, 5))
+                                                e.target.value = '' // 重置 input 以便再次選取
+                                            }}
                                             style={{ fontSize: '14px' }} />
                                         {completionPhotos.length > 0 && (
-                                            <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+                                            <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
                                                 {completionPhotos.map((f, i) => (
-                                                    <div key={i} style={{ fontSize: '12px', padding: '4px 10px', background: '#e5e7eb', borderRadius: '6px' }}>
-                                                        📎 {f.name.substring(0, 15)}...
+                                                    <div key={i} style={{
+                                                        position: 'relative', width: '72px', height: '72px',
+                                                        borderRadius: '8px', overflow: 'hidden',
+                                                        border: '1px solid #d1d5db',
+                                                    }}>
+                                                        <img
+                                                            src={URL.createObjectURL(f)}
+                                                            alt={f.name}
+                                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                                        />
+                                                        <button type="button"
+                                                            onClick={() => setCompletionPhotos(prev => prev.filter((_, idx) => idx !== i))}
+                                                            style={{
+                                                                position: 'absolute', top: '2px', right: '2px',
+                                                                width: '20px', height: '20px', borderRadius: '50%',
+                                                                background: 'rgba(0,0,0,0.6)', color: '#fff',
+                                                                border: 'none', fontSize: '12px', cursor: 'pointer',
+                                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                lineHeight: 1,
+                                                            }}>
+                                                            ×
+                                                        </button>
                                                     </div>
                                                 ))}
                                             </div>
+                                        )}
+                                        {completionPhotos.length >= 5 && (
+                                            <div style={{ fontSize: '12px', color: '#f59e0b', marginTop: '4px' }}>已達上限 5 張</div>
                                         )}
                                     </div>
 
@@ -1540,7 +1567,7 @@ export default function TicketDetail() {
                                             <span style={{ fontSize: '18px', fontWeight: 'bold' }}>$</span>
                                             <input type="number" className="form-input" style={{ flex: 1 }}
                                                 placeholder="實際收取金額" value={actualAmount}
-                                                onChange={e => setActualAmount(e.target.value)} />
+                                                onChange={e => { setActualAmount(e.target.value); setCompletionError('') }} />
                                         </div>
                                     </div>
 
