@@ -1107,7 +1107,8 @@ class TicketController extends Controller
             ]);
             return response()->json([
                 'message' => '載入工單詳情時發生錯誤',
-                'debug' => config('app.debug') ? $e->getMessage() : null,
+                'debug' => $e->getMessage(),
+                'file' => $e->getFile() . ':' . $e->getLine(),
             ], 500);
         }
     }
