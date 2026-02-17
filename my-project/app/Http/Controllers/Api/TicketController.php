@@ -1017,88 +1017,99 @@ class TicketController extends Controller
      */
     public function trackDetail(Request $request, $id)
     {
-        $lineUserId = $request->input('line_user_id', '');
-        $phone = $request->input('phone', '');
-        $ticketNo = $request->input('ticket_no', '');
+        try {
+            $lineUserId = $request->input('line_user_id', '');
+            $phone = $request->input('phone', '');
+            $ticketNo = $request->input('ticket_no', '');
 
-        // 驗證方式 1: LINE User ID（更安全）
-        // 驗證方式 2: 手機 + 編號（傳統方式）
-        if ($lineUserId) {
-            $ticket = Ticket::where('id', $id)
-                ->where('customer_line_id', $lineUserId)
-                ->first();
-        } else {
-            $ticket = Ticket::where('id', $id)
-                ->where('phone', $phone)
-                ->where('ticket_no', $ticketNo)
-                ->first();
-        }
+            // 驗證方式 1: LINE User ID（更安全）
+            // 驗證方式 2: 手機 + 編號（傳統方式）
+            if ($lineUserId) {
+                $ticket = Ticket::where('id', $id)
+                    ->where('customer_line_id', $lineUserId)
+                    ->first();
+            } else {
+                $ticket = Ticket::where('id', $id)
+                    ->where('phone', $phone)
+                    ->where('ticket_no', $ticketNo)
+                    ->first();
+            }
 
-        if (!$ticket) {
-            return response()->json(['message' => '找不到此工單，或驗證資訊不符'], 404);
-        }
+            if (!$ticket) {
+                return response()->json(['message' => '找不到此工單，或驗證資訊不符'], 404);
+            }
 
-        // 公開版：客戶安全遮罩
-        $ticketData = [
-            'id' => $ticket->id,
-            'ticket_no' => $ticket->ticket_no,
-            'category' => $ticket->category,
-            'title' => $ticket->title,
-            'status' => $ticket->status,
-            'customer_name' => $this->maskName($ticket->customer_name),
-            'phone' => $this->maskPhone($ticket->phone),
-            'address' => $this->maskAddress($ticket->address),
-            'description' => $ticket->description_raw ? mb_substr($ticket->description_raw, 0, 80) : '',
-            'preferred_time_slot' => $ticket->preferred_time_slot,
-            'is_urgent' => $ticket->is_urgent,
-            'supplement_note' => $ticket->supplement_note,
-            'quoted_amount' => $ticket->quoted_amount,
-            'actual_amount' => $ticket->actual_amount,
-            'quote_confirmed_at' => $ticket->quote_confirmed_at,
-            'proposed_time_slots' => $ticket->proposed_time_slots,
-            'confirmed_time_slot' => $ticket->confirmed_time_slot,
-            'confirmed_by' => $ticket->confirmed_by,
-            'time_confirmed_at' => $ticket->time_confirmed_at,
-            // 日曆排程
-            'customer_preferred_slots' => $ticket->customer_preferred_slots,
-            'worker_selected_slot' => $ticket->worker_selected_slot,
-            'reschedule_count' => $ticket->reschedule_count ?? 0,
-            'reschedule_history' => $ticket->reschedule_history,
-            'cancelled_at' => $ticket->cancelled_at,
-            'cancelled_by_name' => $ticket->cancelled_by_name,
-            'cancel_reason' => $ticket->cancel_reason,
-            'created_at' => $ticket->created_at,
-            'completed_at' => $ticket->completed_at,
-            'updated_at' => $ticket->updated_at,
-        ];
-
-        // 附件照片（含完整 URL）
-        $ticket->load('attachments');
-        $ticketData['attachments'] = $ticket->attachments->map(function ($att) {
-            return [
-                'id' => $att->id,
-                'file_path' => $att->file_path,
-                'file_url' => url('api/attachments/' . $att->id . '/image'),
-                'file_type' => $att->file_type,
-                'original_name' => $att->original_name,
+            // 公開版：客戶安全遮罩
+            $ticketData = [
+                'id' => $ticket->id,
+                'ticket_no' => $ticket->ticket_no,
+                'category' => $ticket->category ?? '',
+                'title' => $ticket->title ?? '',
+                'status' => $ticket->status,
+                'customer_name' => $this->maskName($ticket->customer_name),
+                'phone' => $this->maskPhone($ticket->phone),
+                'address' => $this->maskAddress($ticket->address),
+                'description' => $ticket->description_raw ? mb_substr($ticket->description_raw, 0, 80) : '',
+                'preferred_time_slot' => $ticket->preferred_time_slot ?? '',
+                'is_urgent' => $ticket->is_urgent ?? false,
+                'supplement_note' => $ticket->supplement_note ?? '',
+                'quoted_amount' => $ticket->quoted_amount,
+                'actual_amount' => $ticket->actual_amount,
+                'quote_confirmed_at' => $ticket->quote_confirmed_at,
+                'proposed_time_slots' => $ticket->proposed_time_slots,
+                'confirmed_time_slot' => $ticket->confirmed_time_slot,
+                'confirmed_by' => $ticket->confirmed_by ?? '',
+                'time_confirmed_at' => $ticket->time_confirmed_at,
+                // 日曆排程（防御性取值）
+                'customer_preferred_slots' => $ticket->customer_preferred_slots ?? [],
+                'worker_selected_slot' => $ticket->worker_selected_slot ?? [],
+                'reschedule_count' => $ticket->reschedule_count ?? 0,
+                'reschedule_history' => $ticket->reschedule_history ?? [],
+                'cancelled_at' => $ticket->cancelled_at,
+                'cancelled_by_name' => $ticket->cancelled_by_name ?? '',
+                'cancel_reason' => $ticket->cancel_reason ?? '',
+                'created_at' => $ticket->created_at,
+                'completed_at' => $ticket->completed_at,
+                'updated_at' => $ticket->updated_at,
             ];
-        })->toArray();
 
-        // 待補件時回傳完整可編輯資料（不遮罩）
-        if ($ticket->status === 'need_more_info') {
-            $ticketData['editable'] = true;
-            $ticketData['customer_name'] = $ticket->customer_name;
-            $ticketData['phone_raw'] = $ticket->phone;
-            $ticketData['address'] = $ticket->address;
-            $ticketData['description'] = $ticket->description_raw ?? '';
-            $ticketData['category'] = $ticket->category;
-            $ticketData['preferred_time_slot'] = $ticket->preferred_time_slot;
-            $ticketData['is_urgent'] = $ticket->is_urgent;
+            // 附件照片（含完整 URL）
+            $ticket->load('attachments');
+            $ticketData['attachments'] = $ticket->attachments ? $ticket->attachments->map(function ($att) {
+                return [
+                    'id' => $att->id,
+                    'file_path' => $att->file_path ?? '',
+                    'file_url' => url('api/attachments/' . $att->id . '/image'),
+                    'file_type' => $att->file_type ?? '',
+                    'original_name' => $att->original_name ?? '',
+                ];
+            })->toArray() : [];
+
+            // 待補件時回傳完整可編輯資料（不遮罩）
+            if ($ticket->status === 'need_more_info') {
+                $ticketData['editable'] = true;
+                $ticketData['customer_name'] = $ticket->customer_name;
+                $ticketData['phone_raw'] = $ticket->phone;
+                $ticketData['address'] = $ticket->address;
+                $ticketData['description'] = $ticket->description_raw ?? '';
+                $ticketData['category'] = $ticket->category;
+                $ticketData['preferred_time_slot'] = $ticket->preferred_time_slot;
+                $ticketData['is_urgent'] = $ticket->is_urgent;
+            }
+
+            return response()->json([
+                'ticket' => $ticketData,
+            ]);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('trackDetail error: ' . $e->getMessage(), [
+                'ticket_id' => $id,
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return response()->json([
+                'message' => '載入工單詳情時發生錯誤',
+                'debug' => config('app.debug') ? $e->getMessage() : null,
+            ], 500);
         }
-
-        return response()->json([
-            'ticket' => $ticketData,
-        ]);
     }
 
     /**
