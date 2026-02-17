@@ -15,8 +15,8 @@ const statusMap = {
     in_progress: { label: '處理中', color: '#8b5cf6', icon: '🔧' },
     done: { label: '已完工', color: '#10b981', icon: '✅' },
     accepted: { label: '已驗收', color: '#22c55e', icon: '👍' },
-    completed: { label: '已結案', color: '#6b7280', icon: '📁' },
-    closed: { label: '已關閉', color: '#6b7280', icon: '🔒' },
+    completed: { label: '已完成', color: '#6b7280', icon: '📁' },
+    closed: { label: '結案', color: '#6b7280', icon: '🏁' },
     cancelled: { label: '已取消', color: '#ef4444', icon: '❌' },
 }
 

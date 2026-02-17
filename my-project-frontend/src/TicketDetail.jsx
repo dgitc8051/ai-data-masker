@@ -12,6 +12,7 @@ const STATUS_MAP = {
     reschedule: { label: '改期中', color: '#f59e0b' },
     in_progress: { label: '處理中', color: '#f97316' },
     done: { label: '完工', color: '#10b981' },
+    accepted: { label: '已驗收', color: '#22c55e' },
     closed: { label: '結案', color: '#9ca3af' },
     cancelled: { label: '已取消', color: '#ef4444' },
     // 舊狀態相容
@@ -29,6 +30,7 @@ const STATUS_TRANSITIONS = {
     reschedule: ['dispatched', 'time_proposed', 'cancelled'],
     in_progress: ['done', 'reschedule', 'cancelled'],
     done: ['closed'],
+    accepted: ['closed'],
     closed: [],
     cancelled: ['new'],
 }
@@ -1789,12 +1791,35 @@ export default function TicketDetail() {
                                 }}>
                                     <div style={{ fontSize: '28px', marginBottom: '8px' }}>👍</div>
                                     <div style={{ fontWeight: 'bold', color: '#22c55e' }}>客戶已驗收</div>
-                                    <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>可進行結案</div>
                                     {ticket.actual_amount && (
                                         <div style={{ fontSize: '14px', color: '#059669', marginTop: '8px', fontWeight: '600' }}>💰 實收金額：${ticket.actual_amount} 元</div>
                                     )}
                                     {ticket.accepted_at && (
                                         <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>驗收時間：{new Date(ticket.accepted_at).toLocaleString('zh-TW')}</div>
+                                    )}
+                                    {isAdmin && (
+                                        <button
+                                            onClick={async () => {
+                                                if (!window.confirm('確定要結案嗎？結案後將無法再修改此工單。')) return
+                                                setSaving(true)
+                                                try {
+                                                    await updateStatus('closed')
+                                                } catch (err) {
+                                                    alert('結案失敗：' + err.message)
+                                                }
+                                                setSaving(false)
+                                            }}
+                                            disabled={saving}
+                                            style={{
+                                                marginTop: '16px', padding: '12px 32px', fontSize: '15px',
+                                                fontWeight: '700', borderRadius: '10px',
+                                                border: 'none', cursor: 'pointer',
+                                                background: '#6b7280', color: '#fff',
+                                                opacity: saving ? 0.5 : 1,
+                                            }}
+                                        >
+                                            {saving ? '⏳ 處理中...' : '🏁 確認結案'}
+                                        </button>
                                     )}
                                 </div>
                             )}
