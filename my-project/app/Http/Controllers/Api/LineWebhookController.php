@@ -82,10 +82,10 @@ class LineWebhookController extends Controller
             "我們提供專業到府維修服務，以下是常用功能：\n\n" .
             "🔧 報修填單：\n{$frontendUrl}/repair\n\n" .
             "📋 查詢進度：\n{$frontendUrl}/track\n\n" .
+            "🛠️ 服務項目：\n{$frontendUrl}/services\n\n" .
             "💰 費用參考：\n{$frontendUrl}/pricing\n\n" .
             "📞 聯絡我們：\n{$frontendUrl}/contact\n\n" .
-            "請直接點選下方選單快速操作 👇\n\n" .
-            "（師傅/員工如需綁定帳號，請輸入：綁定 帳號 密碼）"
+            "請直接點選下方選單或輸入關鍵字（如「報修」「查詢」「費用」）快速操作 👇"
         );
     }
 
