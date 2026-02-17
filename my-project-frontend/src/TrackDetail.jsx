@@ -229,7 +229,7 @@ export default function TrackDetail() {
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ line_user_id, phone, ticket_no: ticketNo }),
+                    body: JSON.stringify({ line_user_id: lineUserId, phone, ticket_no: ticketNo }),
                 }
             )
             const data = await res.json()
@@ -251,7 +251,7 @@ export default function TrackDetail() {
         setSubmitting(true)
         try {
             const formData = new FormData()
-            if (line_user_id) formData.append('line_user_id', line_user_id)
+            if (lineUserId) formData.append('line_user_id', lineUserId)
             if (phone) formData.append('phone', phone)
             if (ticketNo) formData.append('ticket_no', ticketNo)
 
@@ -830,7 +830,7 @@ export default function TrackDetail() {
                                 onClick={async () => {
                                     setSubmitting(true)
                                     try {
-                                        const body = { line_user_id, phone, ticket_no: ticketNo }
+                                        const body = { line_user_id: lineUserId, phone, ticket_no: ticketNo }
                                         const res = await fetch(
                                             `${API}/api/tickets/track/${id}/customer-confirm-slot`,
                                             { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
@@ -1044,7 +1044,7 @@ export default function TrackDetail() {
                                     if (!validSlots.length) { alert('請至少選擇一個新時段'); return }
                                     setSubmitting(true)
                                     try {
-                                        const body = { line_user_id, phone, ticket_no: ticketNo, reason: rescheduleReason, new_preferred_slots: validSlots }
+                                        const body = { line_user_id: lineUserId, phone, ticket_no: ticketNo, reason: rescheduleReason, new_preferred_slots: validSlots }
                                         const res = await fetch(
                                             `${API}/api/tickets/track/${id}/reschedule`,
                                             { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
@@ -1336,7 +1336,7 @@ export default function TrackDetail() {
                                                 {
                                                     method: 'POST',
                                                     headers: { 'Content-Type': 'application/json' },
-                                                    body: JSON.stringify({ line_user_id, phone, ticket_no: ticketNo, cancel_reason: cancelReason }),
+                                                    body: JSON.stringify({ line_user_id: lineUserId, phone, ticket_no: ticketNo, cancel_reason: cancelReason }),
                                                 }
                                             )
                                             const data = await res.json()

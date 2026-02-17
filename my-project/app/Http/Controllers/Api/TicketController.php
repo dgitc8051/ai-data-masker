@@ -86,7 +86,7 @@ class TicketController extends Controller
             $ticket->primary_technician = $primary ? ['id' => $primary->id, 'name' => $primary->name] : null;
         });
 
-        return response()->json($tickets);
+        return response()->json($tickets, 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     /**
@@ -296,7 +296,7 @@ class TicketController extends Controller
         $ticketData['assistants'] = $assistants->map(fn($a) => ['id' => $a->id, 'name' => $a->name])->values();
         $ticketData['is_primary'] = $user && $primary && $user->id === $primary->id;
 
-        return response()->json($ticketData);
+        return response()->json($ticketData, 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     /**
@@ -1008,7 +1008,7 @@ class TicketController extends Controller
 
         return response()->json([
             'tickets' => $tickets,
-        ]);
+        ], 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     /**
@@ -1134,7 +1134,7 @@ class TicketController extends Controller
 
         return response()->json([
             'tickets' => $tickets,
-        ]);
+        ], 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
     }
 
     /**
