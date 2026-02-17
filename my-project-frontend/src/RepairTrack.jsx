@@ -79,9 +79,10 @@ export default function RepairTrack() {
             })
     }, [])
 
-    // LIFF 登入成功後自動查詢
+    // LIFF 登入成功後自動查詢 + 儲存 line_user_id
     useEffect(() => {
         if (!lineUserId) return
+        sessionStorage.setItem('track_line_user_id', lineUserId)
         loadByLineId()
     }, [lineUserId]) // eslint-disable-line
 

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Link, useParams, useLocation } from 'react-router-dom'
+import { Link, useParams, useLocation, useSearchParams } from 'react-router-dom'
+import liff from '@line/liff'
 import LiffCloseButton from './LiffCloseButton'
 
 const statusMap = {
@@ -24,8 +25,16 @@ const statusSteps = ['new', 'dispatched', 'scheduled', 'in_progress', 'done', 'c
 export default function TrackDetail() {
     const { id } = useParams()
     const location = useLocation()
+    const [searchParams] = useSearchParams()
     const API = import.meta.env.VITE_API_URL
-    const { phone, ticketNo, line_user_id } = location.state || {}
+    const stateData = location.state || {}
+    // 優先用 location.state，其次 URL 參數，最後 sessionStorage
+    const resolvedLineUserId = stateData.line_user_id
+        || searchParams.get('line_user_id')
+        || sessionStorage.getItem('track_line_user_id')
+        || ''
+    const phone = stateData.phone || ''
+    const ticketNo = stateData.ticketNo || ''
 
     const [ticket, setTicket] = useState(null)
     const [loading, setLoading] = useState(true)
@@ -55,6 +64,8 @@ export default function TrackDetail() {
     const [calendarSlots, setCalendarSlots] = useState([{ date: '', periods: [] }])
     // 照片放大
     const [lightboxImg, setLightboxImg] = useState(null)
+    const [lineUserId, setLineUserId] = useState(resolvedLineUserId)
+    const [liffIniting, setLiffIniting] = useState(false)
 
     // 日期範圍
     const today = new Date()
@@ -100,20 +111,62 @@ export default function TrackDetail() {
         setCalendarSlots(updated)
     }
 
+    // 儲存 line_user_id 到 sessionStorage（頁面刷新時可復原）
     useEffect(() => {
-        if (!line_user_id && (!phone || !ticketNo)) {
-            setError('缺少驗證資訊，請重新查詢')
-            setLoading(false)
+        if (lineUserId) {
+            sessionStorage.setItem('track_line_user_id', lineUserId)
+        }
+    }, [lineUserId])
+
+    useEffect(() => {
+        if (lineUserId) {
+            fetchDetail()
             return
         }
-        fetchDetail()
-    }, [id]) // eslint-disable-line
+        if (phone && ticketNo) {
+            fetchDetail()
+            return
+        }
+        // 沒有任何驗證資訊 → 嘗試 LIFF 重新初始化
+        const liffId = import.meta.env.VITE_LIFF_ID_TRACK
+        if (liffId && !liffIniting) {
+            setLiffIniting(true)
+            const timeout = setTimeout(() => {
+                setError('缺少驗證資訊，請從維修進度查詢頁面進入')
+                setLoading(false)
+            }, 5000)
+            liff.init({ liffId })
+                .then(async () => {
+                    clearTimeout(timeout)
+                    if (liff.isLoggedIn()) {
+                        try {
+                            const profile = await liff.getProfile()
+                            setLineUserId(profile.userId)
+                            sessionStorage.setItem('track_line_user_id', profile.userId)
+                            return // useEffect on lineUserId will trigger fetchDetail
+                        } catch (e) {
+                            console.warn('LIFF getProfile 失敗:', e)
+                        }
+                    }
+                    setError('缺少驗證資訊，請從維修進度查詢頁面進入')
+                    setLoading(false)
+                })
+                .catch(() => {
+                    clearTimeout(timeout)
+                    setError('缺少驗證資訊，請從維修進度查詢頁面進入')
+                    setLoading(false)
+                })
+        } else {
+            setError('缺少驗證資訊，請從維修進度查詢頁面進入')
+            setLoading(false)
+        }
+    }, [id, lineUserId]) // eslint-disable-line
 
     const fetchDetail = async () => {
         setError('')  // 清除舊錯誤
         try {
-            const params = line_user_id
-                ? new URLSearchParams({ line_user_id })
+            const params = lineUserId
+                ? new URLSearchParams({ line_user_id: lineUserId })
                 : new URLSearchParams({ phone, ticket_no: ticketNo })
             const res = await fetch(
                 `${import.meta.env.VITE_API_URL}/api/tickets/track/${id}?${params}`
