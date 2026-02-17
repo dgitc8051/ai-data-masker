@@ -69,6 +69,9 @@ export default function TicketDetail() {
     const [acceptEstimate, setAcceptEstimate] = useState('')
     // 照片放大
     const [lightboxImg, setLightboxImg] = useState(null)
+    // 完工確認步驟
+    const [confirmingCompletion, setConfirmingCompletion] = useState(false)
+    const [completionError, setCompletionError] = useState('')
 
     const isAdmin = user?.role === 'admin'
     const isRepairTicket = ticket?.category != null
@@ -272,44 +275,43 @@ export default function TicketDetail() {
         setSaving(false)
     }
 
-    // 師傅完工回報
-    const handleCompletion = async () => {
+    // 師傅完工回報 - 第一步：驗證並顯示確認
+    const handleCompletionClick = () => {
         if (!actualAmount) {
-            alert('⚠️ 請填寫實收金額後再回報完工')
+            setCompletionError('⚠️ 請填寫實收金額後再回報完工')
             return
         }
-        // 使用 setTimeout 避免 React re-render 導致 confirm 被關閉
-        const doCompletion = async () => {
-            setSaving(true)
-            try {
-                // 上傳完工照
-                if (completionPhotos.length > 0) {
-                    const formData = new FormData()
-                    completionPhotos.forEach(f => formData.append('attachments[]', f))
-                    formData.append('type', 'completion')
-                    await authFetch(`${API}/api/tickets/${id}/attachments`, {
-                        method: 'POST',
-                        body: formData,
-                    })
-                }
-                // 更新狀態為完工（含說明+金額）
-                await updateStatus('done', {
-                    completion_note: completionNote || undefined,
-                    actual_amount: actualAmount ? Number(actualAmount) : undefined,
+        setCompletionError('')
+        setConfirmingCompletion(true)
+    }
+
+    // 師傅完工回報 - 第二步：確認執行
+    const handleCompletionConfirm = async () => {
+        setConfirmingCompletion(false)
+        setSaving(true)
+        try {
+            // 上傳完工照
+            if (completionPhotos.length > 0) {
+                const formData = new FormData()
+                completionPhotos.forEach(f => formData.append('attachments[]', f))
+                formData.append('type', 'completion')
+                await authFetch(`${API}/api/tickets/${id}/attachments`, {
+                    method: 'POST',
+                    body: formData,
                 })
-                setCompletionPhotos([])
-                setCompletionNote('')
-                setActualAmount('')
-            } catch (err) {
-                alert('回報失敗：' + err.message)
             }
-            setSaving(false)
+            // 更新狀態為完工（含說明+金額）
+            await updateStatus('done', {
+                completion_note: completionNote || undefined,
+                actual_amount: actualAmount ? Number(actualAmount) : undefined,
+            })
+            setCompletionPhotos([])
+            setCompletionNote('')
+            setActualAmount('')
+        } catch (err) {
+            setCompletionError('回報失敗：' + err.message)
         }
-        setTimeout(() => {
-            if (window.confirm('確定要回報完工嗎？')) {
-                doCompletion()
-            }
-        }, 10)
+        setSaving(false)
     }
 
     // 師傅選擇時段
@@ -1542,12 +1544,61 @@ export default function TicketDetail() {
                                         </div>
                                     </div>
 
-                                    {/* 完工回報按鈕 */}
-                                    <button type="button" onClick={handleCompletion} disabled={saving}
-                                        className="btn btn-primary"
-                                        style={{ padding: '16px', fontSize: '16px', background: '#10b981' }}>
-                                        {saving ? '⏳ 回報中...' : '✅ 完工回報'}
-                                    </button>
+                                    {/* 完工回報確認區域 */}
+                                    {completionError && (
+                                        <div style={{
+                                            padding: '10px 14px', background: '#fef2f2', borderRadius: '8px',
+                                            border: '1px solid #fca5a5', color: '#dc2626', fontSize: '14px',
+                                            fontWeight: '600', marginBottom: '8px',
+                                        }}>
+                                            {completionError}
+                                        </div>
+                                    )}
+
+                                    {!confirmingCompletion ? (
+                                        <button type="button" onClick={handleCompletionClick} disabled={saving}
+                                            className="btn btn-primary"
+                                            style={{ padding: '16px', fontSize: '16px', background: '#10b981' }}>
+                                            {saving ? '⏳ 回報中...' : '✅ 完工回報'}
+                                        </button>
+                                    ) : (
+                                        <div style={{
+                                            padding: '16px', background: '#f0fdf4', borderRadius: '12px',
+                                            border: '2px solid #10b981',
+                                        }}>
+                                            <div style={{ fontSize: '15px', fontWeight: '700', color: '#059669', marginBottom: '8px', textAlign: 'center' }}>
+                                                ❓ 確定要回報完工嗎？
+                                            </div>
+                                            <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '12px', textAlign: 'center' }}>
+                                                實收金額：${actualAmount} 元
+                                                {completionNote && <span> │ 說明：{completionNote}</span>}
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '10px' }}>
+                                                <button type="button"
+                                                    onClick={() => setConfirmingCompletion(false)}
+                                                    style={{
+                                                        flex: 1, padding: '12px', borderRadius: '8px',
+                                                        border: '1px solid #d1d5db', background: '#fff',
+                                                        color: '#374151', fontSize: '15px', fontWeight: '600',
+                                                        cursor: 'pointer',
+                                                    }}>
+                                                    取消
+                                                </button>
+                                                <button type="button"
+                                                    onClick={handleCompletionConfirm}
+                                                    disabled={saving}
+                                                    style={{
+                                                        flex: 1, padding: '12px', borderRadius: '8px',
+                                                        border: 'none', background: '#10b981',
+                                                        color: '#fff', fontSize: '15px', fontWeight: '700',
+                                                        cursor: 'pointer',
+                                                        opacity: saving ? 0.5 : 1,
+                                                    }}>
+                                                    {saving ? '⏳ 回報中...' : '✅ 確認完工'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* 師傅改期 */}
                                     <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '12px', marginTop: '12px' }}>
