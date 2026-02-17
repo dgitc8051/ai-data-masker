@@ -1099,7 +1099,7 @@ class TicketController extends Controller
 
             return response()->json([
                 'ticket' => $ticketData,
-            ]);
+            ], 200, [], JSON_INVALID_UTF8_SUBSTITUTE);
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('trackDetail error: ' . $e->getMessage(), [
                 'ticket_id' => $id,
@@ -1107,8 +1107,6 @@ class TicketController extends Controller
             ]);
             return response()->json([
                 'message' => '載入工單詳情時發生錯誤',
-                'debug' => $e->getMessage(),
-                'file' => $e->getFile() . ':' . $e->getLine(),
             ], 500);
         }
     }
