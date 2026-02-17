@@ -47,6 +47,7 @@ export default function TicketDetail() {
     const [dispatchResult, setDispatchResult] = useState(null)
     const [saving, setSaving] = useState(false)
     const [completionPhotos, setCompletionPhotos] = useState([])
+    const [completionPreviews, setCompletionPreviews] = useState([])  // preview URLs
     // 派工選主師傅
     const [selectedPrimary, setSelectedPrimary] = useState(null)
     // 師傅報價
@@ -75,6 +76,46 @@ export default function TicketDetail() {
 
     const isAdmin = user?.role === 'admin'
     const isRepairTicket = ticket?.category != null
+
+    // 照片壓縮（手機拍的照片動輒 10MB+，壓縮到 ~300KB）
+    const compressImage = (file, maxWidth = 1920, quality = 0.7) => {
+        return new Promise((resolve) => {
+            if (!file.type.startsWith('image/')) { resolve(file); return }
+            const reader = new FileReader()
+            reader.onload = (e) => {
+                const img = new Image()
+                img.onload = () => {
+                    const canvas = document.createElement('canvas')
+                    let w = img.width, h = img.height
+                    if (w > maxWidth) { h = Math.round(h * maxWidth / w); w = maxWidth }
+                    canvas.width = w; canvas.height = h
+                    canvas.getContext('2d').drawImage(img, 0, 0, w, h)
+                    canvas.toBlob((blob) => {
+                        const compressed = new File([blob], file.name, { type: 'image/jpeg' })
+                        resolve(compressed)
+                    }, 'image/jpeg', quality)
+                }
+                img.src = e.target.result
+            }
+            reader.readAsDataURL(file)
+        })
+    }
+
+    // 完工照片處理（選擇後自動壓縮）
+    const handleCompletionPhotos = async (e) => {
+        const files = Array.from(e.target.files).slice(0, 5 - completionPhotos.length)
+        if (files.length === 0) return
+        const compressed = await Promise.all(files.map(f => compressImage(f)))
+        setCompletionPhotos(prev => [...prev, ...compressed].slice(0, 5))
+        setCompletionPreviews(prev => [...prev, ...compressed.map(f => URL.createObjectURL(f))].slice(0, 5))
+        e.target.value = '' // 重置 input 以便再次選取
+    }
+
+    const removeCompletionPhoto = (index) => {
+        URL.revokeObjectURL(completionPreviews[index])
+        setCompletionPhotos(prev => prev.filter((_, i) => i !== index))
+        setCompletionPreviews(prev => prev.filter((_, i) => i !== index))
+    }
 
     const fetchTicket = async () => {
         try {
@@ -306,6 +347,7 @@ export default function TicketDetail() {
                 actual_amount: actualAmount ? Number(actualAmount) : undefined,
             })
             setCompletionPhotos([])
+            setCompletionPreviews([])
             setCompletionNote('')
             setActualAmount('')
         } catch (err) {
@@ -1505,40 +1547,28 @@ export default function TicketDetail() {
                                     {/* 完工照片 */}
                                     <div style={{ padding: '14px 16px', background: '#f9fafb', borderRadius: '10px' }}>
                                         <label style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px', display: 'block' }}>
-                                            📷 完工照片 <span style={{ color: '#9ca3af', fontSize: '12px' }}>（選填，可多張，最多5張）</span>
+                                            📷 完工照片 <span style={{ color: '#9ca3af', fontSize: '12px' }}>（選填，最多 5 張）</span>
                                         </label>
-                                        <input type="file" accept="image/*" multiple
-                                            onChange={e => {
-                                                const newFiles = Array.from(e.target.files)
-                                                setCompletionPhotos(prev => [...prev, ...newFiles].slice(0, 5))
-                                                e.target.value = '' // 重置 input 以便再次選取
-                                            }}
-                                            style={{ fontSize: '14px' }} />
-                                        {completionPhotos.length > 0 && (
-                                            <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
-                                                {completionPhotos.map((f, i) => (
-                                                    <div key={i} style={{
-                                                        position: 'relative', width: '72px', height: '72px',
-                                                        borderRadius: '8px', overflow: 'hidden',
-                                                        border: '1px solid #d1d5db',
-                                                    }}>
-                                                        <img
-                                                            src={URL.createObjectURL(f)}
-                                                            alt={f.name}
-                                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                                        />
-                                                        <button type="button"
-                                                            onClick={() => setCompletionPhotos(prev => prev.filter((_, idx) => idx !== i))}
-                                                            style={{
-                                                                position: 'absolute', top: '2px', right: '2px',
-                                                                width: '20px', height: '20px', borderRadius: '50%',
-                                                                background: 'rgba(0,0,0,0.6)', color: '#fff',
-                                                                border: 'none', fontSize: '12px', cursor: 'pointer',
-                                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                                lineHeight: 1,
-                                                            }}>
-                                                            ×
-                                                        </button>
+                                        <input
+                                            type="file" accept="image/*" multiple
+                                            onChange={handleCompletionPhotos}
+                                            style={{ fontSize: '14px' }}
+                                        />
+                                        {completionPreviews.length > 0 && (
+                                            <div style={{ display: 'flex', gap: '10px', marginTop: '10px', flexWrap: 'wrap' }}>
+                                                {completionPreviews.map((url, i) => (
+                                                    <div key={i} style={{ position: 'relative' }}>
+                                                        <img src={url} alt={`完工照片${i + 1}`} style={{
+                                                            width: '100px', height: '100px', objectFit: 'cover',
+                                                            borderRadius: '8px', border: '1px solid #e5e7eb',
+                                                        }} />
+                                                        <button type="button" onClick={() => removeCompletionPhoto(i)} style={{
+                                                            position: 'absolute', top: '-6px', right: '-6px',
+                                                            width: '22px', height: '22px', borderRadius: '50%',
+                                                            border: 'none', background: '#ef4444', color: 'white',
+                                                            cursor: 'pointer', fontSize: '12px', lineHeight: '22px',
+                                                            textAlign: 'center',
+                                                        }}>✕</button>
                                                     </div>
                                                 ))}
                                             </div>
