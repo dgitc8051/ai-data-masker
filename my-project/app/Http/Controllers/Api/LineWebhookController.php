@@ -239,7 +239,84 @@ class LineWebhookController extends Controller
             return;
         }
 
-        // === AI 智能引導 ===
+        // === 快速關鍵字回覆（不需 AI，即時回應） ===
+        $frontendUrl = env('FRONTEND_URL', 'https://ai-data-masker-production-fda9.up.railway.app');
+        $lowerText = mb_strtolower($text);
+
+        // 報修相關
+        if (preg_match('/報修|維修|修理|壞了|漏水|不冷|跳電|我要修/u', $lowerText)) {
+            $lineService->pushMessage(
+                $lineUserId,
+                "🔧 報修填單\n\n" .
+                "請點擊以下連結填寫維修單：\n{$frontendUrl}/repair\n\n" .
+                "填完後我們會儘速為您安排師傅！\n\n" .
+                "💰 費用參考：\n{$frontendUrl}/pricing"
+            );
+            return;
+        }
+
+        // 查詢 / 追蹤
+        if (preg_match('/查詢|追蹤|進度|我的單|工單|維修單|修好了嗎/u', $lowerText)) {
+            $lineService->pushMessage(
+                $lineUserId,
+                "📋 查詢維修進度\n\n" .
+                "請點擊以下連結查詢：\n{$frontendUrl}/track\n\n" .
+                "輸入維修編號和手機號碼即可查看最新狀態。"
+            );
+            return;
+        }
+
+        // 費用 / 價格
+        if (preg_match('/費用|價格|多少錢|收費|報價|怎麼算|貴不貴/u', $lowerText)) {
+            $lineService->pushMessage(
+                $lineUserId,
+                "💰 費用參考\n\n" .
+                "請點擊以下連結查看：\n{$frontendUrl}/pricing\n\n" .
+                "📌 到府基礎檢測費 \$300（維修則全額折抵）\n" .
+                "⚠️ 實際金額依現場狀況，以師傅報價為準。"
+            );
+            return;
+        }
+
+        // 服務項目
+        if (preg_match('/服務|項目|你們做什麼|有什麼|可以修/u', $lowerText)) {
+            $lineService->pushMessage(
+                $lineUserId,
+                "🛠️ 服務項目\n\n" .
+                "我們提供各類到府維修服務：\n{$frontendUrl}/services\n\n" .
+                "包含水電、冷氣、熱水器、門窗等多項維修。"
+            );
+            return;
+        }
+
+        // 聯絡 / 電話 / 地址
+        if (preg_match('/聯絡|電話|地址|營業|在哪|怎麼找|客服/u', $lowerText)) {
+            $lineService->pushMessage(
+                $lineUserId,
+                "📞 聯絡我們\n\n" .
+                "詳細資訊請查看：\n{$frontendUrl}/contact\n\n" .
+                "也可以直接在此留言，我們會儘快回覆。"
+            );
+            return;
+        }
+
+        // 功能列表 / 選單 / 幫助
+        if (preg_match('/功能|選單|menu|幫助|help|你好|嗨|hi|hello/ui', $lowerText)) {
+            $lineService->pushMessage(
+                $lineUserId,
+                "您好！我是修繕通智能客服 🤖\n\n" .
+                "以下是常用功能：\n\n" .
+                "🔧 報修填單：\n{$frontendUrl}/repair\n\n" .
+                "📋 查詢進度：\n{$frontendUrl}/track\n\n" .
+                "💰 費用參考：\n{$frontendUrl}/pricing\n\n" .
+                "🛠️ 服務項目：\n{$frontendUrl}/services\n\n" .
+                "📞 聯絡我們：\n{$frontendUrl}/contact\n\n" .
+                "直接輸入關鍵字（如「報修」「查詢」「費用」）也可以快速操作！"
+            );
+            return;
+        }
+
+        // === 無匹配關鍵字 → AI 智能引導 ===
         $reply = $this->aiSmartGuide($text);
         $lineService->pushMessage($lineUserId, $reply);
     }
