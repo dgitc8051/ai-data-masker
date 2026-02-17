@@ -1089,6 +1089,68 @@ export default function TicketDetail() {
                             ))}
                         </div>
                     )}
+
+                    {/* 已完工提示（管理員視角） */}
+                    {ticket.status === 'done' && (
+                        <div className="detail-card" style={{ background: '#f0fdf4', borderLeft: '4px solid #10b981' }}>
+                            <div style={{ textAlign: 'center' }}>
+                                <div style={{ fontSize: '28px', marginBottom: '8px' }}>✅</div>
+                                <div style={{ fontWeight: 'bold', color: '#10b981', fontSize: '16px' }}>已回報完工</div>
+                                <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>等待客戶驗收確認</div>
+                                {ticket.actual_amount && (
+                                    <div style={{ fontSize: '14px', color: '#059669', marginTop: '8px', fontWeight: '600' }}>💰 實收金額：${ticket.actual_amount} 元</div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 已驗收 + 結案按鈕（管理員視角） */}
+                    {ticket.status === 'accepted' && (
+                        <div className="detail-card" style={{ background: '#f0fdf4', borderLeft: '4px solid #22c55e' }}>
+                            <div style={{ textAlign: 'center' }}>
+                                <div style={{ fontSize: '28px', marginBottom: '8px' }}>👍</div>
+                                <div style={{ fontWeight: 'bold', color: '#22c55e', fontSize: '16px' }}>客戶已驗收</div>
+                                {ticket.actual_amount && (
+                                    <div style={{ fontSize: '14px', color: '#059669', marginTop: '8px', fontWeight: '600' }}>💰 實收金額：${ticket.actual_amount} 元</div>
+                                )}
+                                {ticket.accepted_at && (
+                                    <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>驗收時間：{new Date(ticket.accepted_at).toLocaleString('zh-TW')}</div>
+                                )}
+                                <button
+                                    onClick={async () => {
+                                        if (!window.confirm('確定要結案嗎？結案後將無法再修改此工單。')) return
+                                        setSaving(true)
+                                        try {
+                                            await updateStatus('closed')
+                                        } catch (err) {
+                                            alert('結案失敗：' + err.message)
+                                        }
+                                        setSaving(false)
+                                    }}
+                                    disabled={saving}
+                                    className="btn btn-primary"
+                                    style={{
+                                        marginTop: '16px', padding: '12px 32px', fontSize: '15px',
+                                        fontWeight: '700', borderRadius: '10px',
+                                        background: '#6b7280', color: '#fff', border: 'none',
+                                        opacity: saving ? 0.5 : 1,
+                                    }}
+                                >
+                                    {saving ? '⏳ 處理中...' : '🏁 確認結案'}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 已結案（管理員視角） */}
+                    {ticket.status === 'closed' && (
+                        <div className="detail-card" style={{ background: '#f3f4f6', borderLeft: '4px solid #9ca3af' }}>
+                            <div style={{ textAlign: 'center' }}>
+                                <div style={{ fontSize: '28px', marginBottom: '8px' }}>🏁</div>
+                                <div style={{ fontWeight: 'bold', color: '#9ca3af', fontSize: '16px' }}>此案件已結案</div>
+                            </div>
+                        </div>
+                    )}
                 </>
             )}
 
